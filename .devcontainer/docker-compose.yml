@@ -1,0 +1,7 @@
+version: '3.8'
+
+services:
+  dev:
+    image: mcr.microsoft.com/devcontainers/base:bookworm
+    # Working copy comes from the Dev Containers-managed volume at /workspaces.
+    command: sleep infinity
