@@ -48,6 +48,7 @@ scripts/keel check --id <id>       # one check
 scripts/keel check --task <n>      # the checks the current plan's task names
 scripts/keel check --changed       # only checks whose scope matches the change
 scripts/keel check --base <ref>    # what "the change" is measured against
+scripts/keel base                  # what it resolves to here, and why
 ```
 
 `--changed` means the working tree **plus every commit since the base**. A task

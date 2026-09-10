@@ -22,11 +22,13 @@
 #     model:  opus | sonnet | haiku | fable | inherit — dispatch on this.
 #             Omitted means sonnet. Advisors have none and show `-`.
 #
+#   keel base [--base <ref>]      what the change is measured against, and why
+#
 #   The change is the working tree plus every commit since the base ref, so
-#   scoping keeps working after a task commits. The base is --base, else the
-#   branch's upstream, else the remote's default branch. No branch name is
-#   hardwired; when none resolves, the working tree alone is used and the
-#   runner says so on stderr.
+#   scoping keeps working after a task commits. The base is --base, else
+#   `git config keel.base`, else the branch's upstream, else the remote's
+#   default branch. No branch name is hardwired. Only path-scoped checks and
+#   participants need one; when none is needed, none is resolved.
 #
 # Exit: 0 all blocking checks passed, 1 a blocking check failed, 2 usage error.
 #END-HELP
@@ -48,18 +50,79 @@ warn() { printf 'keel: %s\n' "$*" >&2; }
 
 # ------------------------------------------------------------------- change --
 
-# What the change is measured against. Explicit --base wins; then the branch's
-# own upstream; then the remote's default branch. Nothing is hardwired, because
-# a repo's trunk is not keel's to assume — some call it main, some develop, some
-# have no remote at all.
+# What the change is measured against, and how it was decided.
+#
+# Prints "<ref>\t<how>" so callers can explain themselves. No branch name is
+# hardwired at any step — a repo's trunk is not keel's to assume. In order:
+#
+#   1. --base                     the caller said so
+#   2. git config keel.base       the repo said so, once, persistently
+#   3. the branch's upstream      git already knows what this branch tracks
+#   4. origin/HEAD                the remote's default branch
+#   5. any single remote's HEAD   same, for a repo whose remote is not "origin"
+#   6. the only remote branch     a repo with exactly one, so there is no guess
+#
+# Steps 4-6 are what a clone sets up for you. A repo where someone ran
+# `git remote add` by hand has none of them until `git remote set-head <r> -a`.
 resolve_base() {
-  local explicit="${1:-}" ref
-  if [ -n "$explicit" ]; then printf '%s' "$explicit"; return 0; fi
+  local explicit="${1:-}" ref n
+
+  if [ -n "$explicit" ]; then printf '%s\t%s' "$explicit" "--base"; return 0; fi
+
+  ref="$(git config --get keel.base 2>/dev/null)"
+  if [ -n "$ref" ]; then
+    printf '%s\t%s' "$ref" "git config keel.base"; return 0
+  fi
+
   ref="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)"
-  [ -z "$ref" ] || { printf '%s' "$ref"; return 0; }
+  [ -z "$ref" ] || { printf '%s\t%s' "$ref" "this branch's upstream"; return 0; }
+
   ref="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)"
-  [ -z "$ref" ] || { printf '%s' "$ref"; return 0; }
+  [ -z "$ref" ] || { printf '%s\t%s' "$ref" "origin/HEAD"; return 0; }
+
+  # Exactly one remote with a HEAD — a repo whose remote is not called "origin".
+  # Resolve the symbolic ref rather than reporting the HEAD itself, so the
+  # answer names the branch a person would recognise.
+  n="$(git for-each-ref --format='%(refname)' 'refs/remotes/*/HEAD' 2>/dev/null)"
+  if [ "$(printf '%s\n' "$n" | grep -c .)" = "1" ] && [ -n "$n" ]; then
+    ref="$(git symbolic-ref --quiet --short "$n" 2>/dev/null)"
+    [ -z "$ref" ] || { printf '%s\t%s' "$ref" "${n#refs/remotes/}"; return 0; }
+  fi
+
+  # Exactly one remote-tracking branch in the whole repo — nothing to choose between.
+  n="$(git for-each-ref --format='%(refname:short)' refs/remotes 2>/dev/null | grep -v '/HEAD$')"
+  if [ "$(printf '%s\n' "$n" | grep -c .)" = "1" ] && [ -n "$n" ]; then
+    printf '%s\t%s' "$n" "the only remote-tracking branch"; return 0
+  fi
+
   return 1
+}
+
+# A configured base that names nothing is a repo defect, and the runner says so
+# rather than falling back — a silent fallback here means scoping quietly
+# degrades to the working tree, which is the failure this whole area is about.
+#
+# Checked at the top level on purpose. `resolve_base` runs inside command
+# substitution, where an `exit` would end only the subshell and the caller would
+# carry on with an empty base.
+check_base_config() {
+  local ref
+  ref="$(git config --get keel.base 2>/dev/null)" || return 0
+  [ -n "$ref" ] || return 0
+  git rev-parse --verify --quiet "$ref" >/dev/null 2>&1 && return 0
+  die "git config keel.base is '${ref}', which resolves to nothing in this repo
+point it at a ref that exists, or drop it: git config --unset keel.base"
+}
+
+# The advice that actually fixes it, in the order most likely to apply.
+base_help() {
+  printf 'keel: to set one:\n'
+  if [ -n "$(git remote 2>/dev/null)" ]; then
+    printf 'keel:   git remote set-head %-14s  # ask the remote which branch is its default\n' \
+      "$(git remote 2>/dev/null | head -1) -a"
+  fi
+  printf 'keel:   git config keel.base <ref>     # state it for this repo, once and for all\n'
+  printf 'keel:   keel <cmd> --base <ref>        # just this run\n'
 }
 
 # Every path the change touches: the working tree, the index, untracked files,
@@ -70,10 +133,12 @@ resolve_base() {
 # is clean — scoping against it alone silently skips every path-scoped check and
 # participant on exactly the work they were registered for.
 changed_paths() {
-  local explicit="${1:-}" base mb
-  base="$(resolve_base "$explicit")" || base=""
+  local explicit="${1:-}" resolved base mb
+  resolved="$(resolve_base "$explicit")" || resolved=""
+  base="${resolved%%$'\t'*}"
   if [ -z "$base" ]; then
-    warn "no base ref resolved (no --base, no upstream, no origin/HEAD) — scoping against the working tree only"
+    warn "no base ref — comparing against the working tree only, so anything already committed on this branch looks unchanged"
+    base_help
   fi
   {
     git diff --name-only
@@ -83,7 +148,7 @@ changed_paths() {
       if mb="$(git merge-base "$base" HEAD 2>/dev/null)" && [ -n "$mb" ]; then
         git diff --name-only "$mb" HEAD
       else
-        warn "base ref '${base}' does not resolve — scoping against the working tree only"
+        warn "base ref '${base}' (from ${resolved#*$'\t'}) has no common ancestor with HEAD — comparing against the working tree only"
       fi
     fi
   } 2>/dev/null | sort -u
@@ -600,8 +665,24 @@ if that is still the template line, pick one and delete the rest"
     fi
   fi
 
+  # Resolve paths only if some entry at this point is actually scoped by them.
+  #
+  # Keel's own participants are scoped by class, never by path, so a default
+  # install never needs a base ref here. Working one out anyway meant warning
+  # about a missing base in repos where it changed nothing — an alarm about a
+  # setting that was not being used.
+  local need_paths=0
+  if [ "$all" -eq 0 ] && [ "$(point_paths_source "$point")" != "none" ]; then
+    local _at _globs
+    while IFS=$'\x1f' read -r _ _ _ _ _at _ _ _ _ _globs; do
+      [ "$_at" = "$point" ] || continue
+      [ -n "$_globs" ] || continue
+      need_paths=1; break
+    done <<< "$rows"
+  fi
+
   local paths=""
-  [ "$all" -eq 1 ] || paths="$(paths_for_point "$point" "$base")"
+  [ "$need_paths" -eq 0 ] || paths="$(paths_for_point "$point" "$base")"
 
   # Gates are advisory by construction: agents inform gates, humans decide them.
   local gate=0
@@ -657,6 +738,44 @@ if that is still the template line, pick one and delete the rest"
   return 0
 }
 
+# Say what the base is and where it came from, or why there is none.
+# Whether scoping is working is otherwise only visible as participants and
+# checks quietly not running.
+show_base() {
+  local explicit="" resolved base how mb n
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --base) explicit="${2:-}"; [ -n "$explicit" ] || die "--base needs a value"; shift 2 ;;
+      *) die "unknown option: $1" ;;
+    esac
+  done
+
+  resolved="$(resolve_base "$explicit")" || {
+    info "base:   none"
+    info "effect: only uncommitted work counts as 'the change', so a task that has"
+    info "        committed looks like nothing changed — path-scoped checks and"
+    info "        reviewers stop matching."
+    base_help
+    return 1
+  }
+
+  base="${resolved%%$'\t'*}"; how="${resolved#*$'\t'}"
+  info "base:   ${base}"
+  info "from:   ${how}"
+
+  if mb="$(git merge-base "$base" HEAD 2>/dev/null)" && [ -n "$mb" ]; then
+    n="$(changed_paths "$explicit" 2>/dev/null | grep -c .)"
+    info "merge-base: $(git rev-parse --short "$mb")"
+    info "the change: ${n} path(s)"
+    [ "$n" -gt 0 ] || info "            (nothing yet, or you are on the base branch itself)"
+  else
+    info "effect: no common ancestor with HEAD — nothing committed will be counted."
+    base_help
+    return 1
+  fi
+  return 0
+}
+
 # --------------------------------------------------------------------- main --
 
 case "${1:-}" in
@@ -668,8 +787,9 @@ case "${1:-}" in
       *) die "usage: keel workspace {new <slug>|current|list}" ;;
     esac
     ;;
-  check)        shift; run_checks "$@" ;;
-  participants) shift; run_participants "$@" ;;
+  base)         shift; check_base_config; show_base "$@" ;;
+  check)        shift; check_base_config; run_checks "$@" ;;
+  participants) shift; check_base_config; run_participants "$@" ;;
   ""|-h|--help|help)
     sed -n '2,/^#END-HELP/p' "$0" | grep -v '^#END-HELP' | sed 's/^# \{0,1\}//'
     ;;

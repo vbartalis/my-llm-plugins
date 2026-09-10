@@ -83,15 +83,25 @@ Verify: `scripts/keel check` runs them and passes on a clean tree.
 ## 6. Confirm the base ref resolves
 
 ```
-scripts/keel participants --at branch-review
+scripts/keel base
 ```
 
-If that prints `no base ref resolved`, the repo has no upstream and no
-`origin/HEAD`, so keel can only see uncommitted work — which goes empty as soon
-as a task commits, taking every path-scoped check and reviewer with it.
+This is what "the change" is measured against: the working tree plus every
+commit since that ref. Without it keel sees only uncommitted work, which goes
+empty the moment a task commits — taking every path-scoped check and reviewer
+with it.
 
-Say so, and tell your partner that stages will need `--base <ref>` until the
-repo has a remote. Do not invent a branch name to paper over it.
+Most repos need nothing here; a clone sets `origin/HEAD` and keel finds it. If
+the command reports `base: none`, it prints the ways to set one. Offer them in
+this order, and **do not invent a branch name** — ask which one is the trunk:
+
+1. `git remote set-head <remote> -a` — the repo has a remote and this asks it
+   which branch is default. Best answer: nothing keel-specific to remember.
+2. `git config keel.base <ref>` — no remote, or a trunk the remote disagrees
+   about. Per-clone, so mention that a teammate sets it too.
+
+Report which applies rather than fixing it silently — the trunk of someone's
+repo is not yours to choose.
 
 ## 7. Declare keel in the repo
 

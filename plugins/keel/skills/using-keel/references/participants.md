@@ -133,9 +133,11 @@ scope against what it *did*.
 "What it did" is the working tree **plus every commit since the base ref**. That
 matters because a task's last step is a commit: scoping against the working tree
 alone would go empty the moment a task finished, and skip every path-scoped
-participant on exactly the work it was registered for. The base is `--base`, or
-the branch's upstream, or the remote's default branch — no branch name is
-hardwired, and when none resolves the runner says so and uses the working tree.
+participant on exactly the work it was registered for.
+
+The base is `--base`, else `git config keel.base`, else the branch's upstream,
+else a remote's default branch — no branch name is hardwired. `keel base` says
+which applies, and how to set one when none does.
 
 `build` scopes against neither. It resolves once per task, before that task has
 written anything, and the runner does not know which files the task names — so

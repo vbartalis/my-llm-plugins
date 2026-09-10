@@ -72,6 +72,51 @@ scripts/keel participants --at <point>           # with scoping
   installed. Note it in the ledger with the participant `id` and continue; a
   missing plugin of someone else's is a setup gap, not a reason to stop.
 
+### `keel: no base ref`
+
+```
+scripts/keel base
+```
+
+That says what keel is measuring the change against, where it got it, and — if
+there is none — how to set one.
+
+**What a base ref is for.** "The change" is the working tree plus every commit
+since the base. A task's last step is a commit, so without a base, finished
+tasks stop counting and every path-scoped check and reviewer stops matching.
+
+**Where keel looks**, in order, hardwiring no branch name:
+
+1. `--base <ref>` on the command
+2. `git config keel.base`
+3. the current branch's upstream
+4. `origin/HEAD`
+5. the HEAD of the only remote, if the remote is not called `origin`
+6. the only remote-tracking branch, if there is exactly one
+
+**Fixing it.** A clone sets `origin/HEAD`, so most repos never see this. A repo
+where someone ran `git remote add` by hand has no `origin/HEAD` until:
+
+```
+git remote set-head origin -a       # ask the remote which branch is its default
+```
+
+For a repo with no remote, or a trunk the remote disagrees about, state it:
+
+```
+git config keel.base develop
+```
+
+That lives in `.git/config`, so it is per-clone — a teammate sets it too. A
+`keel.base` naming a ref that does not exist is an error rather than a silent
+fallback, because a silent fallback here means scoping quietly degrades.
+
+**If you only see this sometimes**, that is correct. Keel resolves a base only
+when something actually needs one: `check --changed` always does, and
+`participants` only when an entry at that point has `when.paths`. Keel's own
+participants are scoped by class, so a default install never needs a base at
+all.
+
 ### `keel: surface.md Class is '...', which is not a class`
 
 The `**Class:**` line holds one word: `spike`, `local`, `cross-app`, or
