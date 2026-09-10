@@ -65,7 +65,17 @@ is inconvenient.
 
 Verify: `scripts/keel check` runs them and passes on a clean tree.
 
-## 7. Report
+## 7. Declare keel in the repo
+
+Merge `${CLAUDE_PLUGIN_ROOT}/templates/repo-CLAUDE.md` into the repo's own
+`CLAUDE.md`, creating it if absent. Merge — never replace; existing repo
+instructions outrank everything in the template.
+
+This matters because the SessionStart hook only fires when the plugin is
+installed. The repo should state its own process so it survives a checkout by
+someone who has not installed keel.
+
+## 8. Report
 
 Say what was created, what already existed, which checks and participants are
 registered, and that the next step is `/keel:orient`.

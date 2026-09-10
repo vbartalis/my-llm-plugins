@@ -73,9 +73,10 @@ Not everything is a feature. Route first:
 
 - **A question** ("how does X work", "where is Y") → answer it. No stage, no
   workspace. Reading is not a change.
-- **A bug with unknown cause** → `keel:systematic-debugging` if present, else
-  find the root cause first. A fix designed before the cause is known is a
-  guess. Once the cause is known, re-enter at `orienting`.
+- **A bug with unknown cause** → find the root cause before designing anything.
+  A fix designed before the cause is known is a guess. Keel does not own
+  debugging technique; use whatever debugging skill this environment has. Once
+  the cause is known, re-enter at `orienting`.
 - **A spike** — a feasibility question whose output is an answer, not code you
   keep → `orienting` will classify it and route you out of the pipeline. Say
   so, timebox it, label anything built as throwaway.

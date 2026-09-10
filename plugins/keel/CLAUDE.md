@@ -22,6 +22,20 @@ add compatibility shims, manifests, or prose for other harnesses.
   why adding a participant never means touching the runner.
 - **`templates/`** — what `/keel:init` copies into a repo.
 
+## Where documentation goes
+
+- **`docs/`** — for people. Narrative, examples, vocabulary, failure modes. Not
+  loaded by any agent at runtime.
+- **`skills/*/SKILL.md`** — for the agent running that stage. Read every time
+  the stage runs, so keep it to what is needed to act.
+- **`skills/*/references/*.md`** — detail loaded on demand. Templates, schemas,
+  technique.
+- **`templates/repo-CLAUDE.md`** — what the target repo says about itself.
+
+When you change behaviour, the docs that must follow are: the stage skill, the
+relevant reference, `docs/walkthrough.md` if the example no longer matches, and
+`docs/glossary.md` if you introduced a word.
+
 ## Rules for editing skills
 
 **One resident skill.** Only `using-keel` is injected at session start. Adding

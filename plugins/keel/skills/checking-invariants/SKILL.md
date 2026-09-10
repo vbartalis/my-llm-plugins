@@ -11,9 +11,8 @@ The enforcement layer. Keel's central claim is that **a rule that lives only
 in prose gets ignored the moment context fills**. An invariant is a rule with
 a command behind it.
 
-This is the socket the contracts layer and the design-system layer will attach
-to. Round one ships the runner and the registry; the rules themselves belong
-to the repo.
+The contracts and design-system layers will land mostly as checks. The runner
+and the registry ship with keel; the rules themselves belong to the repo.
 
 ## The Registry
 

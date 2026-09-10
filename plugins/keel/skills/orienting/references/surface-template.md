@@ -42,7 +42,8 @@ For each shape: its name, which app is authoritative for it, every app that
 consumes it, and whether any consumer maintains its own second declaration of
 it. A second declaration is a finding — record it under Risks.
 
-Today this is prose. Reserved: this becomes the contracts layer's socket.>
+Today this is prose. Reserved: the contracts layer will write generated
+blast-radius output here.>
 
 ## Watch
 

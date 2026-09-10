@@ -109,14 +109,30 @@ because anything with a veto sits above you in practice.
 
 Full schema: `skills/using-keel/references/participants.md`.
 
+## Documentation
+
+| | For | Read when |
+|---|---|---|
+| [docs/walkthrough.md](docs/walkthrough.md) | humans | First. One boundary change through all six stages, with the artifacts it produces. |
+| [docs/glossary.md](docs/glossary.md) | humans + agents | You hit a word keel invented — surface, class, ruling, return, advisor. |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | humans | Something errored, or a stage behaved unexpectedly. |
+| [CLAUDE.md](CLAUDE.md) | agents | You are changing keel itself. |
+| `skills/using-keel/references/` | agents | The stage map, artifacts, participants, return paths, extension points. Loaded on demand. |
+
+The skills are the agent-facing documentation and are read at runtime; the
+`docs/` directory is for people. `/keel:init` also installs a keel section into
+the target repo's own `CLAUDE.md`, so the repo declares its process rather than
+relying on the plugin being installed.
+
 ## Layout
 
 ```
 skills/          one per stage, plus using-keel and checking-invariants
 agents/          implementer, task-reviewer, invariant-reviewer
 commands/        thin entry points; the substance is in the skills
-scripts/keel     workspace and check runner
-templates/       constitution starter
+scripts/keel     workspace, check, stale and participant runner
+templates/       what /keel:init copies into a repo
+docs/            human-facing: walkthrough, glossary, troubleshooting
 ```
 
 Artifacts land in your repo, not here:
