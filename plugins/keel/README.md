@@ -74,9 +74,11 @@ policy, boundary rules. Every stage reads it and treats it as outranking its
 own output. Keep it under two pages; longer and nobody reads it, and it stops
 working. A template lives in `templates/constitution.md`.
 
-Then register checks in `.keel/checks/`. Start with the linters and formatters
-you already run — wrapping an existing command is a legitimate check and it
-takes a minute. See `skills/checking-invariants/`.
+`/keel:init` also installs `link-integrity`, the one check keel ships: it fails
+when a relative link in any tracked markdown file points at something that no
+longer exists. Add your own next — start with the linters and formatters you
+already run, since wrapping an existing command is a legitimate check and takes
+a minute. See `skills/checking-invariants/`.
 
 ## Bringing in things keel does not own
 
@@ -131,7 +133,7 @@ skills/          one per stage, plus using-keel and checking-invariants
 agents/          implementer, task-reviewer, invariant-reviewer
 commands/        thin entry points; the substance is in the skills
 scripts/keel     workspace, check, stale and participant runner
-templates/       what /keel:init copies into a repo
+templates/       what /keel:init copies into a repo, including checks/
 docs/            human-facing: walkthrough, glossary, troubleshooting
 ```
 

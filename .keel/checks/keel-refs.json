@@ -1,0 +1,10 @@
+{
+  "id": "keel-refs",
+  "description": "Every keel: skill and /keel: command named in the docs exists, and no superseded vocabulary survives.",
+  "why": "Bulk in-place edits across many files leave dangling references behind. Three such references survived the 0.2.0 rewrite and were only found by reading, which is exactly the diligence keel says not to rely on.",
+  "command": "scripts/checks/keel-refs.sh",
+  "scope": ["plugins/keel/**/*.md", "*.md"],
+  "severity": "blocking",
+  "layer": "repo",
+  "fixHint": "Rename the reference, create the missing skill or command, or delete the mention."
+}

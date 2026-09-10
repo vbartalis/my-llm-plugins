@@ -55,9 +55,19 @@ It wires `scripts/keel stale` in as a blocking invariant.
 
 ## 6. First checks
 
-Register the repo's existing linters, formatters, and type checkers in
-`.keel/checks/` — wrapping a command you already run is a legitimate check and
-it takes a minute each. Use the schema in
+Keel ships one general-purpose check. Copy both files:
+
+```
+${CLAUDE_PLUGIN_ROOT}/templates/checks/link-integrity.sh   → scripts/checks/
+${CLAUDE_PLUGIN_ROOT}/templates/checks/link-integrity.json → .keel/checks/
+```
+
+Make the script executable. It fails when a relative link in any tracked
+markdown file points at something that no longer exists.
+
+Then register the repo's existing linters, formatters, and type checkers —
+wrapping a command you already run is a legitimate check and it takes a minute
+each. Use the schema in
 `${CLAUDE_PLUGIN_ROOT}/skills/checking-invariants/references/check-manifest.md`.
 
 Every check needs a `why`. A check without one gets deleted the first time it

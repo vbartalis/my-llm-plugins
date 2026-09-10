@@ -58,6 +58,14 @@ is being built around codegen rather than around documentation.
 - **The check with no `why`.** It will be deleted the first time it is
   inconvenient, and nobody will remember what it protected.
 
+## A worked example
+
+`templates/checks/link-integrity.sh` is a real check you can read: it walks
+tracked markdown, resolves every relative link against the file that contains
+it, and prints `file:line` for each one that misses. It shows the shape —
+accumulate into a temp file rather than a pipeline subshell, report to stderr,
+exit non-zero, touch nothing.
+
 ## Registering
 
 Write the JSON into `.keel/checks/<id>.json`, put the script wherever the repo

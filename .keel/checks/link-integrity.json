@@ -1,0 +1,10 @@
+{
+  "id": "link-integrity",
+  "description": "Every relative link in a markdown file resolves to something that exists.",
+  "why": "Documentation rots silently. A link that broke three edits ago looks identical to one that works until someone follows it, and by then nobody remembers what it pointed at.",
+  "command": "scripts/checks/link-integrity.sh",
+  "scope": ["**/*.md"],
+  "severity": "blocking",
+  "layer": "repo",
+  "fixHint": "Fix the path, or delete the link if what it pointed at is gone."
+}
