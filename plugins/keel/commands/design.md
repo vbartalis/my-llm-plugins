@@ -1,5 +1,7 @@
 ---
 description: Turn an oriented change into an agreed design — stage 2
+argument-hint: "[anything to add to the design brief]"
+allowed-tools: Bash(scripts/keel:*), Read, Glob, Grep
 ---
 
 Invoke the `keel:brainstorming` skill and follow it.

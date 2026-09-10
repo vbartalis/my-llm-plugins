@@ -2,13 +2,14 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|clear|compact",
+        "matcher": "startup|resume|clear|compact|fork",
         "hooks": [
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start\"",
             "shell": "bash",
-            "async": false
+            "async": false,
+            "timeout": 10
           }
         ]
       }

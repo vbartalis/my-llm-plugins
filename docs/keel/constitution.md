@@ -37,7 +37,23 @@ cannot run until you install something is a spine nobody starts with.
 Keel targets Claude Code and nothing else. Compatibility shims, manifests, or
 prose for other harnesses do not belong here.
 
-*Rubric*
+The plugin manifest and the marketplace entry carry the same version. A release
+bumps both or neither.
+
+*Check:* `plugin-manifests` · *Rubric*
+
+## The Harness Surface
+
+Keel extends Claude Code through skills, agents, commands, one `SessionStart`
+hook, and one script. It ships no MCP server, no `userConfig`, no plugin
+dependencies, no workflows and no output styles — each of those would put
+keel's behaviour somewhere a repo's own rules cannot reach.
+
+The hook covers every session source and injects exactly one skill. A source it
+does not cover is a session with no stage map, which is invisible until someone
+notices the process was improvised.
+
+*Check:* `plugin-manifests`, `keel-tests`
 
 ## Testing
 

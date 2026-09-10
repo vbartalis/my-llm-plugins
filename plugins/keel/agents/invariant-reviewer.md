@@ -2,6 +2,7 @@
 name: invariant-reviewer
 description: Reviews a change against the repo's invariant rubrics - the rules that matter but that no command can decide. Complements checking-invariants, which handles the ones a command can.
 model: sonnet
+color: red
 tools: Read, Bash, Glob, Grep
 ---
 

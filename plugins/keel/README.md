@@ -127,7 +127,7 @@ Full schema: `skills/using-keel/references/participants.md`.
 | [docs/walkthrough.md](docs/walkthrough.md) | humans | First. One boundary change through all six stages, with the artifacts it produces. |
 | [docs/glossary.md](docs/glossary.md) | humans + agents | You hit a word keel invented — surface, class, ruling, return, advisor. |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | humans | Something errored, or a stage behaved unexpectedly. |
-| [CLAUDE.md](CLAUDE.md) | agents | You are changing keel itself. |
+| [../../CLAUDE.md](../../CLAUDE.md) | agents | You are changing keel itself. Lives at the repo root, because a `CLAUDE.md` inside a plugin is not loaded for anyone who installs it. |
 | `skills/using-keel/references/` | agents | The stage map, artifacts, participants, return paths, extension points. Loaded on demand. |
 
 The skills are the agent-facing documentation and are read at runtime; the

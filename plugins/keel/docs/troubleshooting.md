@@ -110,6 +110,26 @@ would stall the pipeline with no clean recovery.
 If you want something to actually block, attach it at `task-review`,
 `branch-review` or `verify` — or make it a check.
 
+### Keel does not seem to be active in this repo
+
+The `SessionStart` hook injects the stage map only where keel is set up — it
+looks for `.keel/`, `scripts/keel`, or `docs/keel/` in the project. The plugin
+installs per machine, so without that guard every repo on your machine would be
+told it is built with keel.
+
+Run `/keel:init`. The commands work either way, so `/keel:init` is available
+even in a repo the hook stays quiet in.
+
+If the repo *has* been through init and the map is still missing, check the hook
+is running at all — `/keel:status` works regardless, and is the fastest way to
+tell whether the runner is reachable.
+
+### It was active, then I resumed the session and it was not
+
+That was a real defect before 0.7.0: the hook matched `startup`, `clear` and
+`compact`, but not `resume` or `fork`. A resumed session started with no stage
+map and improvised. Update the plugin.
+
 ### The agent skipped a stage
 
 Say so. Stage skills are written to be followed under pressure to skip them, but

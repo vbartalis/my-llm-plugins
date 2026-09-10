@@ -1,0 +1,10 @@
+{
+  "id": "plugin-manifests",
+  "description": "The plugin and marketplace manifests validate strictly, their versions agree, and the SessionStart hook covers every session source.",
+  "why": "Every failure this catches is invisible at runtime. A misspelled manifest field still loads the plugin, minus whatever it configured. Drifted versions ship a plugin that misreports itself. A hook matcher missing `resume` cost nothing observable until a resumed session started with no stage map — which is the exact failure keel exists to prevent.",
+  "command": "scripts/checks/plugin-manifests.sh",
+  "scope": ["plugins/keel/.claude-plugin/**", "plugins/keel/hooks/**", ".claude-plugin/**"],
+  "severity": "blocking",
+  "layer": "repo",
+  "fixHint": "Run `claude plugin validate ./plugins/keel --strict` to see the manifest complaint; for version drift, bump both plugin.json and the marketplace entry together."
+}

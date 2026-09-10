@@ -1,13 +1,30 @@
 {
+  "$schema": "https://code.claude.com/schemas/marketplace-v1.json",
   "name": "my-llm-plugins",
+  "description": "Vilmos Bartalis's Claude Code plugins. Currently one: keel, a process spine for polyglot monorepos.",
   "owner": {
-    "name": "Vilmos Bartalis"
+    "name": "Vilmos Bartalis",
+    "url": "https://github.com/vbartalis"
   },
   "plugins": [
     {
       "name": "keel",
       "source": "./plugins/keel",
-      "description": "Process spine for polyglot monorepos: orient, design, plan, build, verify, ship — with enforceable invariants."
+      "description": "Process spine for polyglot monorepos: orient, design, plan, build, verify, ship — with enforceable invariants.",
+      "version": "0.7.0",
+      "author": {
+        "name": "Vilmos Bartalis"
+      },
+      "homepage": "https://github.com/vbartalis/my-llm-plugins/tree/main/plugins/keel",
+      "repository": "https://github.com/vbartalis/my-llm-plugins",
+      "license": "MIT",
+      "category": "development",
+      "keywords": [
+        "workflow",
+        "monorepo",
+        "spec-driven",
+        "process"
+      ]
     }
   ]
 }

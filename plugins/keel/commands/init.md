@@ -1,5 +1,6 @@
 ---
 description: Set up keel in this repository — wrapper, directories, constitution
+disable-model-invocation: true
 ---
 
 Set up keel in this repository. Report what you created and what already

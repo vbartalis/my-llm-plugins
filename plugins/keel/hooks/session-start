@@ -4,6 +4,12 @@
 # Only using-keel is injected. It is the map; every other skill is loaded
 # on demand through the Skill tool. Keeping exactly one skill resident is
 # what stops keel from becoming a context tax.
+#
+# Registered for all five sources — startup, resume, clear, compact, fork.
+# `resume` and `compact` are the ones keel exists for: a session that comes
+# back without the stage map improvises a process, which is the failure the
+# whole plugin is built to prevent. Skipping a source here does not degrade
+# gracefully, it degrades invisibly.
 
 set -euo pipefail
 

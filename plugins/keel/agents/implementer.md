@@ -2,6 +2,7 @@
 name: implementer
 description: Executes exactly one task from a keel plan in isolation. Dispatched by subagent-driven-development with a constructed brief; never inherits conversation context.
 model: sonnet
+color: green
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 

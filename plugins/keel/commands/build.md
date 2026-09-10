@@ -1,5 +1,7 @@
 ---
 description: Execute an approved plan, fresh subagent and review per task — stage 4
+argument-hint: "[task number to resume from, if not the next one]"
+allowed-tools: Bash(scripts/keel:*), Read, Glob, Grep
 ---
 
 Invoke the `keel:subagent-driven-development` skill and follow it.
