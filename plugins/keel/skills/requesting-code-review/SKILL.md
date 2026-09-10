@@ -40,9 +40,11 @@ Those describe how it was built; the reviewer judges what was built.
 scripts/keel participants --at branch-review
 ```
 
-Dispatch everything it lists, each with the same package. By default that is
-keel's `code-reviewer` prompt, plus `invariant-reviewer` on `cross-app` and
-`boundary` changes for the rubrics no command can decide.
+Dispatch everything it lists, each with the same package and each on the model
+in its row — the last column. By default that is keel's `code-reviewer` prompt
+on `opus`, plus `invariant-reviewer` on `cross-app` and `boundary` changes
+for the rubrics no command can decide. Pass the model explicitly; an omitted
+one inherits yours and the entries stop meaning anything.
 
 A repo can register more — a design-system reviewer, an accessibility auditor,
 a language specialist — scoped so they run only when the change touches what

@@ -3,6 +3,10 @@
 Dispatched after a fix round. Deliberately narrow: it answers whether the
 named findings were addressed, and nothing else.
 
+**Dispatch on the same model as the reviewer whose findings it is checking**,
+passed explicitly. Narrow scope tempts a cheaper one, but a re-review that
+misses a half-applied fix costs a whole round — and one rule beats two.
+
 ---
 
 You are checking whether specific findings were addressed. This is not a

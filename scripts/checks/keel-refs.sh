@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# keel-refs: every keel: skill and /keel: command named in the docs exists.
+# keel-refs: every keel: skill, agent, and /keel: command named in the docs exists.
 #
-# The plugin's own documentation refers to its skills and commands by name.
+# The plugin's own documentation refers to its skills, agents, and commands by
+# name. An agent is nameable wherever a participant entry is shown, so the three
+# namespaces resolve together.
 # Renaming or removing one leaves those references pointing at nothing, and
 # nothing else in the repo notices.
 
@@ -20,6 +22,10 @@ trap 'rm -f "$tmp"' EXIT
 # contains "keel:orient". Treat any name with a command file as resolved.
 commands="$(find "$PLUGIN/commands" -name '*.md' -exec basename {} .md \; 2>/dev/null | tr '\n' ' ')"
 
+# Agent basenames resolve too: a participant entry names one as "keel:<agent>",
+# and the docs show those entries verbatim.
+agents="$(find "$PLUGIN/agents" -name '*.md' -exec basename {} .md \; 2>/dev/null | tr '\n' ' ')"
+
 while IFS= read -r hit; do
   file="${hit%%:*}"; rest="${hit#*:}"
   line="${rest%%:*}"; name="${rest#*:}"
@@ -29,7 +35,8 @@ while IFS= read -r hit; do
   [ -n "$name" ] || continue
   [ -d "$PLUGIN/skills/$name" ] && continue
   case " $commands " in *" $name "*) continue ;; esac
-  printf '%s:%s: keel:%s names no skill or command\n' "$file" "$line" "$name" >> "$tmp"
+  case " $agents "   in *" $name "*) continue ;; esac
+  printf '%s:%s: keel:%s names no skill, agent, or command\n' "$file" "$line" "$name" >> "$tmp"
 done < <(git ls-files '*.md' | xargs -r grep -noE 'keel:[a-z][a-z0-9-]*(/[a-z0-9./-]*)?' 2>/dev/null)
 
 while IFS= read -r hit; do

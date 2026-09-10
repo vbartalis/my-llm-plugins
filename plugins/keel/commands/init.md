@@ -39,14 +39,19 @@ command or a matter of judgment.
 
 If `.keel/participants.json` does not exist, copy
 `${CLAUDE_PLUGIN_ROOT}/templates/participants.json` to it. That registers
-keel's own reviewers as ordinary entries, so the repo can add or replace any of
-them with a line of JSON.
+keel's own reviewers and its implementer as ordinary entries, so the repo can
+add or replace any of them with a line of JSON.
 
 Ask whether any installed plugin should take part in a stage — a design system,
 an accessibility auditor, a language reviewer. Add each as a scoped entry rather
 than an unscoped one; a reviewer that runs on every change is mostly cost. The
 schema is in
 `${CLAUDE_PLUGIN_ROOT}/skills/using-keel/references/participants.md`.
+
+Say that every entry names the `model` it runs on — the shipped defaults put the
+implementer and task review on `sonnet` and the gate and branch reviews on
+`opus` — and that the repo can retune them without touching a skill. Do not
+change them during init; the defaults are the recommendation.
 
 ## 5. Staleness
 

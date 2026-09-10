@@ -24,11 +24,12 @@ every task without anyone remembering to ask for it.
 
 ## Participants
 
-An advisor (a skill invoked *during* a stage) or a reviewer (an agent dispatched
-*after* work exists), attached at one of nine points, scoped by path and surface
-class. Keel's own reviewers are entries in this registry — that uniformity is
-what makes an outside reviewer a one-line addition and a keel reviewer a
-one-line deletion. See `participants.md`.
+An advisor (a skill invoked *during* a stage), a reviewer (an agent dispatched
+*after* work exists), or an implementer (the agent that executes one task),
+attached at one of ten points, scoped by path and surface class, and dispatched
+on the model its entry names. Keel's own reviewers and implementer are entries in
+this registry — that uniformity is what makes an outside reviewer a one-line
+addition and a keel reviewer a one-line deletion. See `participants.md`.
 
 Use this when no command can decide the rule.
 

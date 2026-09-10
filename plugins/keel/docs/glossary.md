@@ -90,7 +90,8 @@ surface was written. `scripts/keel stale`.
 ## Participation
 
 **Participant** — anything that takes part in a stage, registered in
-`.keel/participants.json`. Keel's own reviewers are ordinary entries.
+`.keel/participants.json`. Keel's own reviewers and implementer are ordinary
+entries.
 
 **Advisor** — a skill invoked *during* a stage, while the artifact is being
 written. Shapes the work. No veto.
@@ -98,13 +99,21 @@ written. Shapes the work. No veto.
 **Reviewer** — an agent or prompt dispatched *after* work exists. Produces
 findings. Blocking outside a gate, advisory at one.
 
-**Attachment point** — where a participant runs. Nine of them: `orient`,
-`surface-gate`, `design`, `design-gate`, `plan`, `plan-gate`, `task-review`,
-`branch-review`, `verify`.
+**Implementer** — the agent dispatched at `build` to execute one task. Exactly
+one applies to a given task.
+
+**Attachment point** — where a participant runs. Ten of them: `orient`,
+`surface-gate`, `design`, `design-gate`, `plan`, `plan-gate`, `build`,
+`task-review`, `branch-review`, `verify`.
 
 **Brief** — what a participant is given: `artifacts`, `diff`, or `both`. Never
 the conversation — a reviewer that shares your context has already accepted
 every decision you made.
+
+**Model** — what a participant is dispatched on: `opus`, `sonnet`, `haiku`,
+`fable`, or `inherit`. Absent means `sonnet`. Advisors have none — they run in
+your context. Neither does the main conversation: it runs on the model you
+chose, and no entry changes that.
 
 ---
 

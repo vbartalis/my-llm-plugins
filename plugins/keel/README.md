@@ -94,15 +94,20 @@ A repo declares who else takes part, in `.keel/participants.json`:
 ]
 ```
 
-Two kinds. An **advisor** is a skill invoked *during* a stage — it shapes the
+Three kinds. An **advisor** is a skill invoked *during* a stage — it shapes the
 work. A **reviewer** is an agent dispatched *after* work exists — it produces
 findings. You want both: a design system that only reviews catches drift after
-it already exists.
+it already exists. An **implementer** is the agent that executes one task.
 
-Nine attachment points, scoped by path and surface class so a Go-only change
-never pays for a UI reviewer. Keel's own reviewers are entries in the same
-registry, so adding one is a line and replacing one of keel's is deleting a
-line.
+Ten attachment points, scoped by path and surface class so a Go-only change
+never pays for a UI reviewer. Keel's own reviewers and its implementer are
+entries in the same registry, so adding one is a line and replacing one of
+keel's is deleting a line.
+
+Every entry names the **model** it runs on — `opus`, `sonnet`, `haiku`,
+`fable`, or `inherit` — so what keel spends is decided in one file rather than
+per dispatch. Your own session is untouched: it runs on the model you picked,
+and the registry governs only what keel dispatches.
 
 One rule holds it together: **agents inform gates, humans decide gates.** At any
 gate, `blocking` is ignored and the verdict is presented to you instead — the

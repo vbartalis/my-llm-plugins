@@ -3,6 +3,9 @@
 Dispatched after each implementer reports done. Gets the review package: the
 task text, the diff, and the test output.
 
+**Dispatch on the model named by `scripts/keel participants --at task-review`,
+and pass it explicitly.** An omitted model inherits the coordinator's.
+
 ---
 
 You are reviewing one task's implementation. You did not write it and you have

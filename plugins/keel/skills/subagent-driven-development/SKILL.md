@@ -49,6 +49,14 @@ the only thing you are doing.
 
 ### 1. Dispatch the implementer
 
+```
+scripts/keel participants --at build
+```
+
+One row, and its last column is the model to dispatch on. By default that is
+keel's own `implementer` on `sonnet`; a repo may register its own. Two matching
+rows is a config defect and the runner says so instead of choosing.
+
 Use `implementer-prompt.md`. Construct the brief yourself — the implementer
 sees only what you put in it:
 
@@ -66,9 +74,10 @@ If the implementer asks a question, answer it from the design and surface.
 scripts/keel participants --at task-review
 ```
 
-Dispatch every reviewer it lists, each with the same review package: the task
-text, the diff, and the test output. Never this conversation — a reviewer that
-shares your context has already accepted every decision you made.
+Dispatch every reviewer it lists on the model in its row, each with the same
+review package: the task text, the diff, and the test output. Never this
+conversation — a reviewer that shares your context has already accepted every
+decision you made.
 
 By default this is keel's own `task-reviewer`, which judges two things — **spec
 compliance** (does it do what the task said) and **code quality**. A repo may
@@ -89,8 +98,14 @@ other and enters the fix loop.
 Findings go back for a fix round. Up to five rounds:
 
 - Rounds 1–3: resume the same implementer with the findings.
-- Rounds 4–5: dispatch a fresh implementer on a more capable model. Three
-  failed rounds means the context is the problem.
+- Rounds 4–5: dispatch a fresh implementer on something more capable than the
+  `build` row's model. Three failed rounds means the context is the problem, so
+  the fresh dispatch is the point; the stronger model is what stops round 4
+  repeating round 3.
+
+**Dispatch every subagent on the model its row names, explicitly.** An omitted
+model inherits yours — usually the most capable and most expensive in the
+session — and every entry in `participants.json` becomes decoration.
 
 After each fix round dispatch a **scoped re-review** with
 `re-review-prompt.md` — it looks only at whether the named findings were
@@ -179,3 +194,5 @@ carry the record. Your partner is reading the ledger, not your commentary.
 | "The plan says X but Y is obviously right" | Then rule for Y, ledger it, and amend the plan. Do not do it silently. |
 | "I'll ask about this ambiguity" | Rule on it. Only the four things stop you. |
 | "The check fails but the code is fine" | Then the check is wrong and fixing the check is the task. Either way, ledger it. |
+| "I'll leave the model off, the default is fine" | The default is yours — the most expensive one in the session. Pass the row's model. |
+| "This task looks easy, I'll drop it to `haiku`" | The row already ruled on that. Change the entry if it is wrong, not this dispatch. |

@@ -1,7 +1,7 @@
 {
   "name": "keel",
   "description": "The process spine for a polyglot monorepo. Six stages that chain into each other, hard gates between them, artifacts that survive context loss, and an invariant framework so rules are checked rather than merely written down.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": {
     "name": "Vilmos Bartalis"
   },

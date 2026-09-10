@@ -174,15 +174,20 @@ Then, per task:
 1. The coordinator constructs a brief: the task verbatim, the global
    constraints verbatim, the files it may touch, the interfaces. **Not** the
    design, not other tasks, not this conversation.
-2. A fresh implementer executes it and commits.
-3. Reviewers registered at `task-review` judge spec compliance and quality.
+2. `keel participants --at build` names the implementer and the model it runs
+   on. A fresh implementer executes the task and commits.
+3. Reviewers registered at `task-review` judge spec compliance and quality,
+   each on the model its own entry names.
 4. The task's checks run.
 5. Findings go through the fix loop — up to five rounds, resuming the same
-   implementer for the first three and dispatching a fresh one on a stronger
-   model after that.
+   implementer for the first three and dispatching a fresh, more capable one
+   after that.
 6. The outcome is appended to the ledger.
 
 No pause between tasks. The ledger is the progress report.
+
+Nothing here changes the model *you* are running on. The registry governs what
+keel dispatches; your own session stays on whatever you chose.
 
 ### ledger.md
 

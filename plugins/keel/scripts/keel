@@ -19,7 +19,10 @@
 #     --class <class>             override the surface class
 #     --all                       ignore path scoping
 #     points: orient surface-gate design design-gate plan plan-gate
-#             task-review branch-review verify
+#             build task-review branch-review verify
+#     rows:   id kind target_type target blocking brief model
+#     model:  opus | sonnet | haiku | fable | inherit — dispatch on this.
+#             Omitted means sonnet. Advisors have none and show `-`.
 #
 # Exit: 0 all blocking checks passed, 1 a blocking check failed, 2 usage error.
 #END-HELP
@@ -354,53 +357,98 @@ PARTICIPANTS_FILE="${REPO_ROOT}/.keel/participants.json"
 #   none  — nothing has been decided yet
 #   watch — the ## Watch block of surface.md (what this change WILL touch)
 #   diff  — the working diff (what this change DID touch)
+#
+# `build` is `none` on purpose: it resolves per task, before that task has
+# written anything, and the runner does not know which files the task names.
+# Scope an implementer by surface class, not by path.
 point_paths_source() {
   case "$1" in
-    orient|surface-gate)                 printf 'none'  ;;
+    orient|surface-gate|build)           printf 'none'  ;;
     design|design-gate|plan|plan-gate)   printf 'watch' ;;
     task-review|branch-review|verify)    printf 'diff'  ;;
     *) return 1 ;;
   esac
 }
 
-# TSV per participant: id, kind, target_type, target, at, blocking, brief, classes, paths
+# TSV per participant: id, kind, target_type, target, at, blocking, brief, model,
+# classes, paths
+#
+# `model` is what the caller dispatches this participant on, passed through to
+# the harness verbatim: an alias, or `inherit` for the session's own model. The
+# set is closed so a typo fails here rather than at dispatch. Reviewers and
+# implementers get `sonnet` when the entry omits one — never the session's
+# model, which is the expensive default this field exists to stop. Advisors get
+# `-`: an advisor is a skill invoked in the coordinator's own context, so there
+# is no subagent to give a model to, and an entry that sets one has
+# misunderstood what an advisor is.
+#
+# The separator is passed in rather than written as an escape, so the two
+# readers agree on it by construction.
 read_participants() {
   [ -f "$PARTICIPANTS_FILE" ] || return 0
+  local US; US="$(printf '\037')"
 
   if command -v jq >/dev/null 2>&1; then
-    jq -r '
-      if type != "array" then ("!BAD\u001fparticipants.json\u001fmust be a JSON array") else .[] |
+    jq -r --arg US "$US" '
+      if type != "array"
+      then ("!BAD" + $US + "participants.json" + $US + "must be a JSON array")
+      else .[] |
         (if .agent then "agent" elif .skill then "skill" elif .prompt then "prompt" else "none" end) as $tt
         | (.agent // .skill // .prompt // "") as $t
+        | (.kind // "reviewer") as $k
+        | (.model // "") as $m
         | if (.id // "") == "" or (.at // "") == "" or $tt == "none"
-          then "!BAD\u001f\(.id // "?")\u001fneeds id, at, and one of agent/skill/prompt"
-          else [ .id, (.kind // "reviewer"), $tt, $t, .at,
+          then "!BAD" + $US + (.id // "?") + $US + "needs id, at, and one of agent/skill/prompt"
+          elif (["advisor","reviewer","implementer"] | index($k)) == null
+          then "!BAD" + $US + .id + $US + "kind must be advisor, reviewer, or implementer"
+          elif $k == "advisor" and $m != ""
+          then "!BAD" + $US + .id + $US + "advisors run in your context — they have no model"
+          elif $m != "" and (["opus","sonnet","haiku","fable","inherit"] | index($m)) == null
+          then "!BAD" + $US + .id + $US + "model must be opus, sonnet, haiku, fable, or inherit"
+          else [ .id, $k, $tt, $t, .at,
                  (if .blocking == true then "blocking" else "advisory" end),
                  (.brief // "artifacts"),
+                 (if $k == "advisor" then "-" elif $m == "" then "sonnet" else $m end),
                  ((.when.class // []) | join(",")),
-                 ((.when.paths // []) | join(",")) ] | join("\u001f")
+                 ((.when.paths // []) | join(",")) ] | join($US)
           end
       end' "$PARTICIPANTS_FILE" 2>/dev/null \
       || printf '!BAD\x1fparticipants.json\x1fnot valid JSON\n'
   elif command -v python3 >/dev/null 2>&1; then
     python3 - "$PARTICIPANTS_FILE" <<'PY'
 import json, sys
+US    = "\x1f"
+KINDS = ("advisor", "reviewer", "implementer")
+MODELS = ("opus", "sonnet", "haiku", "fable", "inherit")
+
+def bad(who, why):
+    print(US.join(["!BAD", who, why]))
+
 try:
     doc = json.load(open(sys.argv[1]))
 except Exception as e:
-    print(f"!BAD\u001fparticipants.json\u001f{e}"); sys.exit(0)
+    bad("participants.json", str(e)); sys.exit(0)
 if not isinstance(doc, list):
-    print("!BAD\u001fparticipants.json\u001fmust be a JSON array"); sys.exit(0)
+    bad("participants.json", "must be a JSON array"); sys.exit(0)
 for p in doc:
     tt = "agent" if p.get("agent") else "skill" if p.get("skill") else "prompt" if p.get("prompt") else "none"
     t  = p.get("agent") or p.get("skill") or p.get("prompt") or ""
+    k  = p.get("kind", "reviewer")
+    m  = p.get("model", "") or ""
     if not p.get("id") or not p.get("at") or tt == "none":
-        print(f"!BAD\u001f{p.get('id','?')}\u001fneeds id, at, and one of agent/skill/prompt"); continue
+        bad(p.get("id", "?"), "needs id, at, and one of agent/skill/prompt"); continue
+    if k not in KINDS:
+        bad(p["id"], "kind must be advisor, reviewer, or implementer"); continue
+    if k == "advisor" and m:
+        bad(p["id"], "advisors run in your context — they have no model"); continue
+    if m and m not in MODELS:
+        bad(p["id"], "model must be opus, sonnet, haiku, fable, or inherit"); continue
     w = p.get("when") or {}
-    print("\x1f".join([
-        p["id"], p.get("kind", "reviewer"), tt, t, p["at"],
+    print(US.join([
+        p["id"], k, tt, t, p["at"],
         "blocking" if p.get("blocking") is True else "advisory",
         p.get("brief", "artifacts"),
+        "-" if k == "advisor" else (m or "sonnet"),
         ",".join(w.get("class", [])),
         ",".join(w.get("paths", [])),
     ]))
@@ -441,7 +489,7 @@ run_participants() {
   done
   [ -n "$point" ] || die "usage: keel participants --at <point> [--class <class>] [--all]"
   point_paths_source "$point" >/dev/null || die "unknown attachment point: $point
-points: orient surface-gate design design-gate plan plan-gate task-review branch-review verify"
+points: orient surface-gate design design-gate plan plan-gate build task-review branch-review verify"
 
   local rows
   rows="$(read_participants)" || return 2
@@ -474,8 +522,9 @@ points: orient surface-gate design design-gate plan plan-gate task-review branch
   local gate=0
   case "$point" in *-gate) gate=1 ;; esac
 
-  local id kind tt target at blocking brief classes pglobs n=0
-  while IFS=$'\x1f' read -r id kind tt target at blocking brief classes pglobs; do
+  local id kind tt target at blocking brief model classes pglobs
+  local n=0 impls=0 impl_ids=""
+  while IFS=$'\x1f' read -r id kind tt target at blocking brief model classes pglobs; do
     [ -n "$id" ] || continue
     [ "$at" = "$point" ] || continue
 
@@ -489,9 +538,23 @@ points: orient surface-gate design design-gate plan plan-gate task-review branch
 
     [ "$gate" -eq 0 ] || blocking="advisory"
 
+    if [ "$kind" = "implementer" ]; then
+      impls=$((impls + 1))
+      impl_ids="${impl_ids:+${impl_ids}, }${id}"
+    fi
+
     n=$((n + 1))
-    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$tt" "$target" "$blocking" "$brief"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$tt" "$target" "$blocking" "$brief" "$model"
   done <<< "$rows"
+
+  # One task, one implementer. Two matching entries is a config defect with no
+  # safe default — picking either silently would build the task on a model the
+  # repo did not choose.
+  if [ "$impls" -gt 1 ]; then
+    printf 'keel: more than one implementer matches %s (%s) — scope them by class so exactly one applies\n' \
+      "$point" "$impl_ids" >&2
+    return 2
+  fi
 
   if [ "$n" -eq 0 ]; then
     info "keel: no participants match ${point}${class:+ for class ${class}}"

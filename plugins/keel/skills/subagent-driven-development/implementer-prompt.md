@@ -4,6 +4,11 @@ The brief for a fresh implementer subagent. The coordinator fills the
 placeholders. Send nothing beyond this — no conversation history, no design
 document, no other tasks.
 
+**Dispatch on the model named by `scripts/keel participants --at build`, and
+pass it explicitly.** An omitted model inherits the coordinator's — usually the
+most expensive in the session — and the registry stops governing anything. On
+fix rounds 4–5, something more capable than that row.
+
 ---
 
 You are implementing exactly one task in an existing repository. You have no
