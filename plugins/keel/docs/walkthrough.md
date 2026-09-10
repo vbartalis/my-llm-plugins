@@ -37,7 +37,6 @@ change would drift through, and it goes in Risks.
 # Surface: invoice currency
 
 **Class:** boundary
-**Base:** 5787c98
 **One line:** Invoice gains a currency, visible everywhere an amount is shown.
 
 ## Apps Touched
@@ -138,7 +137,7 @@ correctly or the shape was bent to fit it.
 - Produces: `Invoice.Currency string` — ISO 4217 alpha-3, always populated
   after migration 0042.
 
-**Checks:** `go-lint`, `surface-stale`
+**Checks:** `go-lint`
 
 - [ ] **Step 1: Write the failing test**
 - [ ] **Step 2: Run it and confirm it fails** — `go test ./services/billing/ -run TestInvoiceCurrency`
@@ -165,9 +164,9 @@ task 3 will never see task 1.
 /keel:build
 ```
 
-Setup runs `scripts/keel stale` first. If a watched file moved on `main` while
-you were designing, stop — the design was argued against a shape that no longer
-exists.
+Setup judges the surface first. If something under the Watch block moved on the
+base branch while you were designing, stop — the design was argued against a
+shape that no longer exists.
 
 Then, per task:
 
@@ -195,7 +194,7 @@ keel dispatches; your own session stays on whatever you chose.
 ## Task 1: Invoice carries a currency — COMPLETE 2026-09-10
 
 **Commits:** `a1b2c3d`
-**Review:** approved · **Checks:** go-lint pass, surface-stale pass
+**Review:** approved · **Checks:** go-lint pass
 **Produced:** `Invoice.Currency string`
 
 ---
@@ -223,7 +222,8 @@ Every claim needs an observation made in this session. Memory of a test that
 passed twenty tool calls ago is not an observation.
 
 - Full suite, not just the code you touched.
-- Full check set, and `keel stale` again — the branch may have been open days.
+- Full check set, and a fresh look at the surface — the branch may have been
+  open days.
 - Every statement in the design's Behaviour section, matched to the test that
   demonstrates it.
 - Every consumer named in `surface.md`, confirmed still working. For a boundary

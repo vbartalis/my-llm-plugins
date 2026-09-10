@@ -16,9 +16,9 @@ Six stages. Each produces a file. Each ends by naming the next.
 /keel:ship     →  PR / merge   land it                     [gate]
 ```
 
-Plus four that are not part of the line: `/keel:status` (where am I),
-`/keel:check` (run invariant checks), `/keel:stale` (has the ground moved),
-`/keel:review` (dispatch a reviewer). And `/keel:init`, once per repo.
+Plus three that are not part of the line: `/keel:status` (where am I),
+`/keel:check` (run invariant checks), `/keel:review` (dispatch a reviewer).
+And `/keel:init`, once per repo.
 
 Work returns as often as it advances. A gate that says no sends you back into
 the same stage; a failed verification sends you to whichever stage **owns the
@@ -42,13 +42,8 @@ ways a single app does not:
 - A rule written in a document gets ignored the moment it is inconvenient. →
   **invariants are commands that exit non-zero**, not prose.
 
-- A surface written days ago can be wrong by the time you build on it. →
-  **`keel stale`** fails when a file the surface depends on has moved on the
-  base branch, so a design is never built against a shape that no longer exists.
-
-That last but one is the load-bearing idea. Keel's position is that
-documentation does not enforce anything, and a rule worth having is worth a
-check.
+That last one is the load-bearing idea. Keel's position is that documentation
+does not enforce anything, and a rule worth having is worth a check.
 
 ## Install
 
@@ -137,7 +132,7 @@ relying on the plugin being installed.
 skills/          one per stage, plus using-keel and checking-invariants
 agents/          implementer, task-reviewer, invariant-reviewer
 commands/        thin entry points; the substance is in the skills
-scripts/keel     workspace, check, stale and participant runner
+scripts/keel     workspace, check and participant runner
 templates/       what /keel:init copies into a repo, including checks/
 docs/            human-facing: walkthrough, glossary, troubleshooting
 ```

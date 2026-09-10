@@ -51,7 +51,6 @@ Available at any point, not part of the line:
 | `/keel:init` | — | Set up keel in a repo. Run once, before anything else. |
 | `/keel:status` | — | Where am I? Reads the feature workspace and reports. |
 | `/keel:check` | `keel:checking-invariants` | Run the repo's registered invariant checks. |
-| `/keel:stale` | — | Has anything this surface depends on moved? |
 | `/keel:review` | `keel:requesting-code-review` | Dispatch a reviewer at any point. |
 
 ## Finding Your Stage
@@ -123,7 +122,7 @@ These thoughts mean stop — you are rationalising your way out of the process:
 | "The design is obvious" | Then say it in three sentences and get a nod. That is the bounded path. |
 | "I'll write the plan while I code" | A plan written during coding is a log, not a plan. |
 | "I'll fix the invariant failure later" | Later is where the last three rebuilds went. Fix it or ledger a ruling. |
-| "The surface was fine when I wrote it" | Days ago. Run `keel stale` before you build on it. |
+| "The surface was fine when I wrote it" | Days ago. Look at what moved under the Watch block before you build on it. |
 | "I went back a stage, no need to note it" | A workspace showing only forward motion lies about how the change happened. |
 | "The user wants speed" | Speed is not skipping gates. Speed is small stages. |
 | "This stage doesn't apply here" | Say that out loud with a reason and let your partner decide. |

@@ -81,18 +81,19 @@ Use the template in `references/surface-template.md`. Fill every section. A
 section with nothing in it says "none" — it never gets deleted, because an
 empty section is itself information.
 
-Two fields are mechanical and must be exact:
+One field is mechanical and must be exact:
 
-- **`**Base:**`** — the commit this surface was traced against. Get it with
-  `git rev-parse HEAD`. Without it staleness cannot be checked later.
-- **`## Watch`** — a fenced block listing every file whose change would
-  invalidate this surface: the declarations you found in Step 3, the files that
-  define the shapes and endpoints you named, the migration files. One path per
-  line, repo-relative.
+- **`## Watch`** — a fenced block listing every file this change will touch: the
+  declarations you found in Step 3, the files that define the shapes and
+  endpoints you named, the migration files. One path per line, repo-relative.
 
 The Watch block is the mechanical projection of the Contracts section. Contracts
-names shapes in prose; Watch names the files a command can actually test. If a
-shape you named has no file in Watch, you have not finished tracing it.
+names shapes in prose; Watch names the files a command can actually resolve. If
+a shape you named has no file in Watch, you have not finished tracing it.
+
+It is also the path set the pre-build participant points scope against. Until a
+build produces a diff, this block is the only statement of what the change will
+touch — a reviewer registered for paths you left out is never dispatched.
 
 ### Step 5b: Advisors
 

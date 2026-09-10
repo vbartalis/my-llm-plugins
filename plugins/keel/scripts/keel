@@ -11,10 +11,6 @@
 #     --changed                   run only checks whose scope matches the working diff
 #     --layer <layer>             constitution | contracts | design-system | repo
 #
-#   keel stale [options]          has anything the surface depends on moved?
-#     --ref <ref>                 compare against this ref (default: main)
-#     --workspace <path>          check a specific feature workspace
-#
 #   keel participants --at <point>  who takes part at this point
 #     --class <class>             override the surface class
 #     --all                       ignore path scoping
@@ -253,7 +249,7 @@ run_checks() {
   return 0
 }
 
-# ------------------------------------------------------------------- stale --
+# --------------------------------------------------------------- artifacts --
 
 # Read a "**Field:** value" line out of a workspace artifact.
 md_field() {
@@ -272,81 +268,6 @@ md_fenced() {
     f && /^```/        { if (inb) exit; inb = 1; next }
     f && inb           { print }
   ' "$file"
-}
-
-# Which ref would this branch merge into?
-base_ref() {
-  local r="${KEEL_BASE_REF:-}"
-  [ -n "$r" ] && { printf '%s' "$r"; return 0; }
-  for r in origin/main main origin/master master; do
-    git rev-parse --verify --quiet "$r" >/dev/null 2>&1 && { printf '%s' "$r"; return 0; }
-  done
-  return 1
-}
-
-# Has anything this surface depends on moved since the surface was written?
-run_stale() {
-  local ref="" ws=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --ref)       ref="${2:-}";  [ -n "$ref" ] || die "--ref needs a value";       shift 2 ;;
-      --workspace) ws="${2:-}";   [ -n "$ws" ]  || die "--workspace needs a value"; shift 2 ;;
-      *) die "unknown option: $1" ;;
-    esac
-  done
-
-  [ -n "$ws" ] || ws="$(ws_current 2>/dev/null)" || return 2
-  local surface="${ws}/surface.md"
-  [ -f "$surface" ] || { printf 'keel: no surface.md in %s\n' "$ws" >&2; return 2; }
-
-  local base watch
-  base="$(md_field "$surface" Base || true)"
-  watch="$(md_fenced "$surface" Watch || true)"
-
-  if [ -z "$base" ]; then
-    info "keel: surface.md has no **Base:** line — staleness cannot be checked"
-    info "      add the commit the surface was written against, then re-run"
-    return 0
-  fi
-  if [ -z "${watch//[[:space:]]/}" ]; then
-    info "keel: surface.md has an empty ## Watch block — nothing to check"
-    return 0
-  fi
-  if ! git rev-parse --verify --quiet "$base" >/dev/null 2>&1; then
-    printf 'keel: base commit %s is not in this repository\n' "$base" >&2
-    return 2
-  fi
-
-  [ -n "$ref" ] || ref="$(base_ref)" || {
-    printf 'keel: cannot find a base ref — set KEEL_BASE_REF or pass --ref\n' >&2
-    return 2
-  }
-
-  local moved="" f hits
-  hits="$(git diff --name-only "$base" "$ref" 2>/dev/null)" || {
-    printf 'keel: cannot diff %s..%s\n' "$base" "$ref" >&2
-    return 2
-  }
-
-  while IFS= read -r f; do
-    f="${f#"${f%%[![:space:]]*}"}"
-    f="${f%"${f##*[![:space:]]}"}"
-    [ -n "$f" ] || continue
-    case "$f" in '#'*) continue ;; esac
-    if printf '%s\n' "$hits" | grep -Fxq -- "$f"; then
-      moved="${moved}${f}"$'\n'
-    fi
-  done <<< "$watch"
-
-  if [ -n "$moved" ]; then
-    printf 'surface-stale: written against %s, but %s has moved underneath it:\n' "$base" "$ref" >&2
-    printf '%s' "$moved" | sed 's/^/  /' >&2
-    printf 'surface-stale: re-run /keel:orient against %s before continuing\n' "$ref" >&2
-    return 1
-  fi
-
-  info "keel: surface is current — nothing watched has moved on ${ref} since ${base}"
-  return 0
 }
 
 # ------------------------------------------------------------ participants --
@@ -578,7 +499,6 @@ case "${1:-}" in
     esac
     ;;
   check)        shift; run_checks "$@" ;;
-  stale)        shift; run_stale "$@" ;;
   participants) shift; run_participants "$@" ;;
   ""|-h|--help|help)
     sed -n '2,/^#END-HELP/p' "$0" | grep -v '^#END-HELP' | sed 's/^# \{0,1\}//'

@@ -29,17 +29,15 @@ the only thing you are doing.
    participant who sees all three.
 3. Read `ledger.md` if it exists — you may be resuming. The ledger is the
    memory; if it says task 4 completed, task 4 completed.
-4. **Check the surface is still current:**
-
-   ```
-   scripts/keel stale
-   ```
-
-   A surface written days ago can be wrong by now. If a watched file has moved
-   on the base branch, stop — the design was argued against a shape that no
-   longer exists. Re-run `keel:orienting` against the current base and re-gate
-   whatever the move invalidates. Building on a stale surface is how a change
-   passes every local test and breaks at integration.
+4. **Judge whether the surface is still current.** If the branch has been open
+   a while, or you have rebased or pulled since orienting, read what moved
+   underneath it — `git log` and `git diff` against the base for the files in
+   the `## Watch` block. A whitespace change is nothing; a changed signature on
+   a shape the design rests on means the design was argued against a shape that
+   no longer exists. In that case stop, re-run `keel:orienting` against the
+   current base, and re-gate whatever the move invalidates. Building on a
+   surface that has gone stale is how a change passes every local test and
+   breaks at integration.
 5. Pre-flight the plan: read it critically once. If a task is unimplementable
    in isolation, fix the plan now and say so. Fixing it later costs a wasted
    dispatch.

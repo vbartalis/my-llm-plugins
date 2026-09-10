@@ -14,7 +14,7 @@ to the start.**
 | Design reveals a missed app or boundary | `orienting` | The surface was incomplete, so the design is being argued against the wrong map. |
 | Planning reveals a hole in the design | `brainstorming` | A plan cannot decide behaviour the design never settled. |
 | Build hits reality contradicting an approved artifact | amend it in place | Edit the artifact, state the delta, re-gate **only the delta**, continue. |
-| A watched file moved on the base branch | `orienting` | The surface is stale. See `keel stale`. |
+| A watched file changed on the base branch in a way the design rests on | `orienting` | The surface is stale: the design was argued against a shape that no longer exists. |
 | Verification: wrong behaviour | `brainstorming` | A design defect. The code does what the plan said; the plan said the wrong thing. |
 | Verification: missing work | `writing-plans` | A plan defect. The design covered it, no task implemented it. |
 | Verification: broken implementation | the build loop | A build defect. Handled by the fix loop, not by a stage return. |

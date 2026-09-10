@@ -50,13 +50,10 @@ or carried forward with a reason.
 
 ### 2b. Surface freshness
 
-```
-scripts/keel stale
-```
-
-The branch may have been open for days. If a watched file has moved on the base
-branch since the surface was written, the change was verified against a world
-that no longer exists. Rebase, re-run, and reconcile before continuing.
+The branch may have been open for days. Bring it up to date with its base, then
+look at what moved under the `## Watch` block while it was open. If a shape the
+design rests on changed, the verification you just ran proved something about a
+world that no longer exists — reconcile before continuing.
 
 ### 2c. Registered reviewers
 

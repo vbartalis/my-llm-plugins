@@ -57,7 +57,8 @@ means, and how to record it is in `return-paths.md`. The short version:
 - Amending an approved artifact → edit it, state the delta out loud, re-gate
   only the delta. If what was wrong is load-bearing it is a return, not an
   amendment.
-- A stale surface (`keel stale` fails) returns to `orienting`.
+- A surface that has gone stale — a shape it rests on moved on the base branch
+  while the branch was open — returns to `orienting`.
 - Resuming a workspace after context loss → `/keel:status`, then read
   `ledger.md` in full before touching anything. The ledger is the memory.
 

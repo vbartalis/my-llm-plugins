@@ -27,18 +27,15 @@ formatters and type checkers you already run — each is a legitimate check and
 takes a minute. Every check needs a `why`, or it gets deleted the first time it
 is inconvenient.
 
-### `surface-stale` fails
+### The surface no longer matches the repo
 
-A file in the surface's `## Watch` block moved on the base branch since the
-surface was written. The design was argued against a shape that no longer
-exists.
+A shape the design rests on moved on the base branch while the branch was open.
+The design was argued against something that no longer exists.
 
-Do not build on it. Re-run `/keel:orient` against the current base, reconcile
-`surface.md`, re-gate whatever the move invalidated, and record the return in
-the ledger.
-
-If `surface.md` has no `**Base:**` or an empty `## Watch`, it predates staleness
-checking — fill both in.
+Look at what actually changed under the `## Watch` block before reacting — a
+formatting pass is nothing. If a signature or contract moved, do not build on
+it: re-run `/keel:orient` against the current base, reconcile `surface.md`,
+re-gate whatever the move invalidated, and record the return in the ledger.
 
 ### A check fails but the code looks right
 

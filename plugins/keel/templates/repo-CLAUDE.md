@@ -15,7 +15,6 @@ it before doing anything else:
 ```
 scripts/keel workspace current      # which change am I in?
 scripts/keel check                  # do the repo's invariants hold?
-scripts/keel stale                  # has the ground moved under this surface?
 ```
 
 The `keel:using-keel` skill is the full stage map and is loaded automatically

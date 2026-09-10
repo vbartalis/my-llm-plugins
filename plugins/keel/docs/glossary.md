@@ -55,12 +55,10 @@ conversation context, because that is literally who executes them.
 rulings, returns, check results, parked findings, verification evidence. The
 only thing that survives a compaction.
 
-**Base** — the commit `surface.md` was traced against. Recorded so staleness can
-be checked later.
-
-**Watch block** — the fenced list in `surface.md` of every file whose change
-would invalidate the surface. The mechanical projection of the Contracts
-section: Contracts names shapes in prose, Watch names files a command can test.
+**Watch block** — the fenced list in `surface.md` of every file the change will
+touch. The mechanical projection of the Contracts section: Contracts names
+shapes in prose, Watch names the files that define them. Before a build exists
+it is also the path set the pre-build participant points scope against.
 
 **Interfaces block** — a task's `Consumes` and `Produces`. Load-bearing: the
 only way task 5 learns what task 3 named things. Preconditions and
@@ -82,8 +80,9 @@ Not a separate mechanism: a rubric is a reviewer registered in
 
 **Severity** — `blocking` stops a task; `advisory` is reported and ledgered.
 
-**Staleness** — whether a watched file has moved on the base branch since the
-surface was written. `scripts/keel stale`.
+**Staleness** — whether a shape the surface rests on has moved on the base
+branch since the surface was written. A judgment, not a check: read what changed
+under the Watch block and decide whether the design still holds.
 
 ---
 

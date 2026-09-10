@@ -53,12 +53,7 @@ implementer and task review on `sonnet` and the gate and branch reviews on
 `opus` — and that the repo can retune them without touching a skill. Do not
 change them during init; the defaults are the recommendation.
 
-## 5. Staleness
-
-Copy `${CLAUDE_PLUGIN_ROOT}/templates/surface-stale.json` into `.keel/checks/`.
-It wires `scripts/keel stale` in as a blocking invariant.
-
-## 6. First checks
+## 5. First checks
 
 Keel ships one general-purpose check. Copy both files:
 
@@ -80,7 +75,7 @@ is inconvenient.
 
 Verify: `scripts/keel check` runs them and passes on a clean tree.
 
-## 7. Declare keel in the repo
+## 6. Declare keel in the repo
 
 Merge `${CLAUDE_PLUGIN_ROOT}/templates/repo-CLAUDE.md` into the repo's own
 `CLAUDE.md`, creating it if absent. Merge — never replace; existing repo
@@ -90,7 +85,7 @@ This matters because the SessionStart hook only fires when the plugin is
 installed. The repo should state its own process so it survives a checkout by
 someone who has not installed keel.
 
-## 8. Report
+## 7. Report
 
 Say what was created, what already existed, which checks and participants are
 registered, and that the next step is `/keel:orient`.

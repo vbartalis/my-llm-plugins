@@ -8,7 +8,6 @@ write "None." Empty sections are information.
 
 **Class:** spike | local | cross-app | boundary
 **Date:** YYYY-MM-DD
-**Base:** <output of `git rev-parse HEAD` at the time you traced this>
 **One line:** <what changes, from the outside>
 
 ## Request
@@ -47,13 +46,14 @@ blast-radius output here.>
 
 ## Watch
 
-<Every file whose change would invalidate this surface. One repo-relative path
-per line inside the fence. Lines starting with # are ignored.
+<Every file this change will touch. One repo-relative path per line inside the
+fence. Lines starting with # are ignored.
 
 This is the mechanical projection of the Contracts section above: Contracts
-names shapes, Watch names the files that define them. `scripts/keel stale`
-reads this block and fails when any of these has moved on the base branch since
-**Base:**.>
+names shapes, Watch names the files that define them. Before a build there is
+no diff, so this block is what the design, design-gate, plan and plan-gate
+points scope participants against — a reviewer registered for paths you did not
+list here is never dispatched.>
 
 ```
 services/billing/invoice.go
