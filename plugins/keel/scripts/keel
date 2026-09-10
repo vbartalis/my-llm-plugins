@@ -1,0 +1,524 @@
+#!/usr/bin/env bash
+# keel — workspace and invariant-check runner.
+#
+#   keel workspace new <slug>     create docs/keel/features/YYYY-MM-DD-<slug>/
+#   keel workspace current        print the most recent workspace path
+#   keel workspace list           list all workspaces, newest first
+#
+#   keel check [options]          run registered invariant checks
+#     --id <id>                   run one check
+#     --task <n>                  run the checks named by task <n> of the current plan
+#     --changed                   run only checks whose scope matches the working diff
+#     --layer <layer>             constitution | contracts | design-system | repo
+#
+#   keel stale [options]          has anything the surface depends on moved?
+#     --ref <ref>                 compare against this ref (default: main)
+#     --workspace <path>          check a specific feature workspace
+#
+#   keel participants --at <point>  who takes part at this point
+#     --class <class>             override the surface class
+#     --all                       ignore path scoping
+#     points: orient surface-gate design design-gate plan plan-gate
+#             task-review branch-review verify
+#
+# Exit: 0 all blocking checks passed, 1 a blocking check failed, 2 usage error.
+#END-HELP
+
+set -uo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+FEATURES_DIR="${REPO_ROOT}/docs/keel/features"
+CHECKS_DIR="${REPO_ROOT}/.keel/checks"
+
+die()  { printf 'keel: %s\n' "$*" >&2; exit 2; }
+info() { printf '%s\n' "$*"; }
+
+# ---------------------------------------------------------------- workspace --
+
+ws_new() {
+  local slug="${1:-}"
+  [ -n "$slug" ] || die "usage: keel workspace new <kebab-slug>"
+  case "$slug" in
+    *[!a-z0-9-]*) die "slug must be kebab-case: lowercase letters, digits, hyphens" ;;
+  esac
+  local dir="${FEATURES_DIR}/$(date +%Y-%m-%d)-${slug}"
+  [ -d "$dir" ] || mkdir -p "$dir"
+  info "$dir"
+}
+
+# Newest first. Ordered by modification time, not name: two workspaces created
+# on the same day must still resolve to the one most recently worked in.
+ws_list() {
+  [ -d "$FEATURES_DIR" ] || return 0
+  find "$FEATURES_DIR" -mindepth 1 -maxdepth 1 -type d -printf "%T@\t%p\n" 2>/dev/null \
+    | sort -rn | cut -f2- \
+    || find "$FEATURES_DIR" -mindepth 1 -maxdepth 1 -type d | sort -r
+}
+
+ws_current() {
+  local d
+  d="$(ws_list | head -1)"
+  [ -n "$d" ] || { printf 'keel: no feature workspace yet — start with /keel:orient\n' >&2; return 1; }
+  info "$d"
+}
+
+# ------------------------------------------------------------------- checks --
+
+# One TSV line per valid manifest: id, severity, layer, command, description, scope.
+# Manifests missing required fields are reported to stderr and skipped.
+# Uses jq where available and python3 otherwise; one of the two is present on any
+# machine that can build this monorepo.
+read_manifests() {
+  [ -d "$CHECKS_DIR" ] || return 0
+  compgen -G "$CHECKS_DIR/*.json" >/dev/null 2>&1 || return 0
+
+  if command -v jq >/dev/null 2>&1; then
+    local f
+    for f in "$CHECKS_DIR"/*.json; do
+      jq -r --arg f "$f" '
+        ["id","description","command","scope","severity","layer"] as $need
+        | ($need - (. | keys)) as $missing
+        | if ($missing | length) > 0
+          then "!BAD\u001f\($f)\u001fmissing fields: \($missing | join(", "))"
+          else [.id, .severity, .layer, .command, .description, (.scope | join(","))] | join("\u001f")
+          end
+      ' "$f" 2>/dev/null || printf '!BAD\x1f%s\x1fnot valid JSON\n' "$f"
+    done
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 - "$CHECKS_DIR" <<'PY'
+import json, os, sys, glob
+NEED = ("id", "description", "command", "scope", "severity", "layer")
+for path in sorted(glob.glob(os.path.join(sys.argv[1], "*.json"))):
+    try:
+        m = json.load(open(path))
+    except Exception as e:
+        print(f"!BAD\u001f{path}\u001f{e}"); continue
+    missing = [k for k in NEED if k not in m]
+    if missing:
+        print(f"!BAD\u001f{path}\u001fmissing fields: {', '.join(missing)}"); continue
+    scope = ",".join(m["scope"]) if isinstance(m["scope"], list) else str(m["scope"])
+    print("\x1f".join([m["id"], m["severity"], m["layer"], m["command"], m["description"], scope]))
+PY
+  else
+    printf 'keel: need jq or python3 to read check manifests\n' >&2
+    return 2
+  fi
+}
+
+# Does any path in the working diff match any of this check's globs?
+# Globbing is disabled while splitting: a scope like "apps/**" must stay a
+# pattern rather than expanding against the filesystem.
+scope_matches_diff() {
+  local scope="$1" changed="$2" pat f collapsed
+  [ -n "$changed" ] || return 1
+
+  local -a pats=()
+  local restore_glob=0
+  case "$-" in *f*) ;; *) restore_glob=1 ;; esac
+  set -f
+  local IFS=,
+  # shellcheck disable=SC2206
+  pats=( $scope )
+  unset IFS
+  [ "$restore_glob" -eq 0 ] || set +f
+
+  for pat in "${pats[@]}"; do
+    [ -n "$pat" ] || continue
+    collapsed="${pat//\*\*\//}"
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      # shellcheck disable=SC2053
+      case "$f" in
+        $pat)       return 0 ;;
+        $collapsed) return 0 ;;
+      esac
+    done <<< "$changed"
+  done
+  return 1
+}
+
+# Check ids named by the current plan's task <n>, from its **Checks:** line.
+# Prints "!NOTASK" when no such task heading exists — a typo in a task number
+# must be an error, not a silent pass with nothing to run.
+task_check_ids() {
+  local n="$1" ws plan
+  ws="$(ws_current 2>/dev/null)" || return 1
+  plan="${ws}/plan.md"
+  [ -f "$plan" ] || { printf 'keel: no plan.md in %s\n' "$ws" >&2; return 1; }
+  awk -v n="$n" '
+    $0 ~ "^### Task " n ":" { inside = 1; found = 1; next }
+    inside && /^### Task /  { inside = 0 }
+    inside && /^\*\*Checks:\*\*/ {
+      sub(/^\*\*Checks:\*\*[ \t]*/, "")
+      gsub(/[`,]/, " ")
+      print
+      names = 1
+      inside = 0
+    }
+    END {
+      if (!found)      print "!NOTASK"
+      else if (!names) print "none"
+    }
+  ' "$plan"
+}
+
+run_checks() {
+  local only_id="" only_layer="" task_n="" changed_only=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --id)      only_id="${2:-}";    [ -n "$only_id" ]    || die "--id needs a value";    shift 2 ;;
+      --layer)   only_layer="${2:-}"; [ -n "$only_layer" ] || die "--layer needs a value"; shift 2 ;;
+      --task)    task_n="${2:-}";     [ -n "$task_n" ]     || die "--task needs a value";  shift 2 ;;
+      --changed) changed_only=1; shift ;;
+      *) die "unknown option: $1" ;;
+    esac
+  done
+
+  local manifests
+  manifests="$(read_manifests)" || return 2
+
+  # Surface malformed manifests, then drop them.
+  local bad
+  bad="$(printf '%s\n' "$manifests" | grep '^!BAD' || true)"
+  if [ -n "$bad" ]; then
+    printf '%s\n' "$bad" | while IFS=$'\x1f' read -r _ path reason; do
+      printf 'keel: ignoring %s — %s\n' "$path" "$reason" >&2
+    done
+  fi
+  manifests="$(printf '%s\n' "$manifests" | grep -v '^!BAD' || true)"
+
+  if [ -z "${manifests//[[:space:]]/}" ]; then
+    info "keel: no invariant checks registered in .keel/checks/"
+    info "      rules that matter belong here — see keel:checking-invariants"
+    return 0
+  fi
+
+  local wanted=""
+  if [ -n "$task_n" ]; then
+    wanted="$(task_check_ids "$task_n")" || return 2
+    if [ "${wanted//[[:space:]]/}" = "!NOTASK" ]; then
+      printf 'keel: the current plan has no "### Task %s:" heading\n' "$task_n" >&2
+      return 2
+    fi
+    if [ -z "${wanted//[[:space:]]/}" ] || [ "${wanted//[[:space:]]/}" = "none" ]; then
+      info "keel: task ${task_n} names no checks"
+      return 0
+    fi
+  fi
+
+  local changed=""
+  if [ "$changed_only" -eq 1 ]; then
+    changed="$( { git diff --name-only
+                  git diff --name-only --cached
+                  git ls-files --others --exclude-standard; } 2>/dev/null | sort -u )"
+  fi
+
+  local failed=0 ran=0 skipped=0 advisories=0
+  local id sev layer cmd desc scope out rc
+  while IFS=$'\x1f' read -r id sev layer cmd desc scope; do
+    [ -n "$id" ] || continue
+    [ -z "$only_id"    ] || [ "$only_id"    = "$id"    ] || continue
+    [ -z "$only_layer" ] || [ "$only_layer" = "$layer" ] || continue
+    if [ -n "$wanted" ]; then
+      case " $wanted " in *" $id "*) ;; *) continue ;; esac
+    fi
+    if [ "$changed_only" -eq 1 ] && ! scope_matches_diff "$scope" "$changed"; then
+      skipped=$((skipped + 1)); continue
+    fi
+
+    ran=$((ran + 1))
+    out="$( cd "$REPO_ROOT" && eval "$cmd" 2>&1 )"; rc=$?
+    if [ "$rc" -eq 0 ]; then
+      printf 'PASS      [%s] %s\n' "$layer" "$id"
+    elif [ "$sev" = "advisory" ]; then
+      advisories=$((advisories + 1))
+      printf 'ADVISORY  [%s] %s — %s\n' "$layer" "$id" "$desc"
+      [ -z "$out" ] || printf '%s\n' "$out" | sed 's/^/          /'
+    else
+      failed=$((failed + 1))
+      printf 'FAIL      [%s] %s — %s\n' "$layer" "$id" "$desc"
+      [ -z "$out" ] || printf '%s\n' "$out" | sed 's/^/          /'
+    fi
+  done <<< "$manifests"
+
+  printf -- '---\n%d ran, %d failed' "$ran" "$failed"
+  [ "$advisories" -eq 0 ] || printf ', %d advisory' "$advisories"
+  [ "$skipped"    -eq 0 ] || printf ', %d out of scope' "$skipped"
+  printf '\n'
+
+  [ "$failed" -eq 0 ] || return 1
+  return 0
+}
+
+# ------------------------------------------------------------------- stale --
+
+# Read a "**Field:** value" line out of a workspace artifact.
+md_field() {
+  local file="$1" name="$2"
+  [ -f "$file" ] || return 1
+  sed -n "s/^\*\*${name}:\*\*[[:space:]]*//p" "$file" | head -1 | tr -d '`' | awk '{print $1}'
+}
+
+# Lines inside the first fenced block under a "## <Heading>" section.
+md_fenced() {
+  local file="$1" heading="$2"
+  [ -f "$file" ] || return 1
+  awk -v h="## $heading" '
+    $0 == h            { f = 1; next }
+    f && !inb && /^## / { exit }
+    f && /^```/        { if (inb) exit; inb = 1; next }
+    f && inb           { print }
+  ' "$file"
+}
+
+# Which ref would this branch merge into?
+base_ref() {
+  local r="${KEEL_BASE_REF:-}"
+  [ -n "$r" ] && { printf '%s' "$r"; return 0; }
+  for r in origin/main main origin/master master; do
+    git rev-parse --verify --quiet "$r" >/dev/null 2>&1 && { printf '%s' "$r"; return 0; }
+  done
+  return 1
+}
+
+# Has anything this surface depends on moved since the surface was written?
+run_stale() {
+  local ref="" ws=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --ref)       ref="${2:-}";  [ -n "$ref" ] || die "--ref needs a value";       shift 2 ;;
+      --workspace) ws="${2:-}";   [ -n "$ws" ]  || die "--workspace needs a value"; shift 2 ;;
+      *) die "unknown option: $1" ;;
+    esac
+  done
+
+  [ -n "$ws" ] || ws="$(ws_current 2>/dev/null)" || return 2
+  local surface="${ws}/surface.md"
+  [ -f "$surface" ] || { printf 'keel: no surface.md in %s\n' "$ws" >&2; return 2; }
+
+  local base watch
+  base="$(md_field "$surface" Base || true)"
+  watch="$(md_fenced "$surface" Watch || true)"
+
+  if [ -z "$base" ]; then
+    info "keel: surface.md has no **Base:** line — staleness cannot be checked"
+    info "      add the commit the surface was written against, then re-run"
+    return 0
+  fi
+  if [ -z "${watch//[[:space:]]/}" ]; then
+    info "keel: surface.md has an empty ## Watch block — nothing to check"
+    return 0
+  fi
+  if ! git rev-parse --verify --quiet "$base" >/dev/null 2>&1; then
+    printf 'keel: base commit %s is not in this repository\n' "$base" >&2
+    return 2
+  fi
+
+  [ -n "$ref" ] || ref="$(base_ref)" || {
+    printf 'keel: cannot find a base ref — set KEEL_BASE_REF or pass --ref\n' >&2
+    return 2
+  }
+
+  local moved="" f hits
+  hits="$(git diff --name-only "$base" "$ref" 2>/dev/null)" || {
+    printf 'keel: cannot diff %s..%s\n' "$base" "$ref" >&2
+    return 2
+  }
+
+  while IFS= read -r f; do
+    f="${f#"${f%%[![:space:]]*}"}"
+    f="${f%"${f##*[![:space:]]}"}"
+    [ -n "$f" ] || continue
+    case "$f" in '#'*) continue ;; esac
+    if printf '%s\n' "$hits" | grep -Fxq -- "$f"; then
+      moved="${moved}${f}"$'\n'
+    fi
+  done <<< "$watch"
+
+  if [ -n "$moved" ]; then
+    printf 'surface-stale: written against %s, but %s has moved underneath it:\n' "$base" "$ref" >&2
+    printf '%s' "$moved" | sed 's/^/  /' >&2
+    printf 'surface-stale: re-run /keel:orient against %s before continuing\n' "$ref" >&2
+    return 1
+  fi
+
+  info "keel: surface is current — nothing watched has moved on ${ref} since ${base}"
+  return 0
+}
+
+# ------------------------------------------------------------ participants --
+
+PARTICIPANTS_FILE="${REPO_ROOT}/.keel/participants.json"
+
+# Valid attachment points, and where each one gets its paths from.
+#   none  — nothing has been decided yet
+#   watch — the ## Watch block of surface.md (what this change WILL touch)
+#   diff  — the working diff (what this change DID touch)
+point_paths_source() {
+  case "$1" in
+    orient|surface-gate)                 printf 'none'  ;;
+    design|design-gate|plan|plan-gate)   printf 'watch' ;;
+    task-review|branch-review|verify)    printf 'diff'  ;;
+    *) return 1 ;;
+  esac
+}
+
+# TSV per participant: id, kind, target_type, target, at, blocking, brief, classes, paths
+read_participants() {
+  [ -f "$PARTICIPANTS_FILE" ] || return 0
+
+  if command -v jq >/dev/null 2>&1; then
+    jq -r '
+      if type != "array" then ("!BAD\u001fparticipants.json\u001fmust be a JSON array") else .[] |
+        (if .agent then "agent" elif .skill then "skill" elif .prompt then "prompt" else "none" end) as $tt
+        | (.agent // .skill // .prompt // "") as $t
+        | if (.id // "") == "" or (.at // "") == "" or $tt == "none"
+          then "!BAD\u001f\(.id // "?")\u001fneeds id, at, and one of agent/skill/prompt"
+          else [ .id, (.kind // "reviewer"), $tt, $t, .at,
+                 (if .blocking == true then "blocking" else "advisory" end),
+                 (.brief // "artifacts"),
+                 ((.when.class // []) | join(",")),
+                 ((.when.paths // []) | join(",")) ] | join("\u001f")
+          end
+      end' "$PARTICIPANTS_FILE" 2>/dev/null \
+      || printf '!BAD\x1fparticipants.json\x1fnot valid JSON\n'
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 - "$PARTICIPANTS_FILE" <<'PY'
+import json, sys
+try:
+    doc = json.load(open(sys.argv[1]))
+except Exception as e:
+    print(f"!BAD\u001fparticipants.json\u001f{e}"); sys.exit(0)
+if not isinstance(doc, list):
+    print("!BAD\u001fparticipants.json\u001fmust be a JSON array"); sys.exit(0)
+for p in doc:
+    tt = "agent" if p.get("agent") else "skill" if p.get("skill") else "prompt" if p.get("prompt") else "none"
+    t  = p.get("agent") or p.get("skill") or p.get("prompt") or ""
+    if not p.get("id") or not p.get("at") or tt == "none":
+        print(f"!BAD\u001f{p.get('id','?')}\u001fneeds id, at, and one of agent/skill/prompt"); continue
+    w = p.get("when") or {}
+    print("\x1f".join([
+        p["id"], p.get("kind", "reviewer"), tt, t, p["at"],
+        "blocking" if p.get("blocking") is True else "advisory",
+        p.get("brief", "artifacts"),
+        ",".join(w.get("class", [])),
+        ",".join(w.get("paths", [])),
+    ]))
+PY
+  else
+    printf 'keel: need jq or python3 to read participants.json\n' >&2
+    return 2
+  fi
+}
+
+# Paths this point should scope against, one per line.
+paths_for_point() {
+  local point="$1" ws src
+  src="$(point_paths_source "$point")" || return 1
+  case "$src" in
+    none) return 0 ;;
+    watch)
+      ws="$(ws_current 2>/dev/null)" || return 0
+      md_fenced "${ws}/surface.md" Watch 2>/dev/null || true
+      ;;
+    diff)
+      { git diff --name-only
+        git diff --name-only --cached
+        git ls-files --others --exclude-standard; } 2>/dev/null | sort -u
+      ;;
+  esac
+}
+
+run_participants() {
+  local point="" class="" all=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --at)    point="${2:-}"; [ -n "$point" ] || die "--at needs a value"; shift 2 ;;
+      --class) class="${2:-}"; [ -n "$class" ] || die "--class needs a value"; shift 2 ;;
+      --all)   all=1; shift ;;
+      *) die "unknown option: $1" ;;
+    esac
+  done
+  [ -n "$point" ] || die "usage: keel participants --at <point> [--class <class>] [--all]"
+  point_paths_source "$point" >/dev/null || die "unknown attachment point: $point
+points: orient surface-gate design design-gate plan plan-gate task-review branch-review verify"
+
+  local rows
+  rows="$(read_participants)" || return 2
+
+  local bad
+  bad="$(printf '%s\n' "$rows" | grep '^!BAD' || true)"
+  if [ -n "$bad" ]; then
+    printf '%s\n' "$bad" | while IFS=$'\x1f' read -r _ who reason; do
+      printf 'keel: ignoring participant %s — %s\n' "$who" "$reason" >&2
+    done
+  fi
+  rows="$(printf '%s\n' "$rows" | grep -v '^!BAD' || true)"
+
+  if [ -z "${rows//[[:space:]]/}" ]; then
+    info "keel: no participants registered for ${point}"
+    [ -f "$PARTICIPANTS_FILE" ] || info "      .keel/participants.json does not exist — keel's defaults apply"
+    return 0
+  fi
+
+  # Surface class: given, or read from the current workspace.
+  if [ -z "$class" ]; then
+    local ws
+    ws="$(ws_current 2>/dev/null)" && class="$(md_field "${ws}/surface.md" Class 2>/dev/null || true)"
+  fi
+
+  local paths=""
+  [ "$all" -eq 1 ] || paths="$(paths_for_point "$point")"
+
+  # Gates are advisory by construction: agents inform gates, humans decide them.
+  local gate=0
+  case "$point" in *-gate) gate=1 ;; esac
+
+  local id kind tt target at blocking brief classes pglobs n=0
+  while IFS=$'\x1f' read -r id kind tt target at blocking brief classes pglobs; do
+    [ -n "$id" ] || continue
+    [ "$at" = "$point" ] || continue
+
+    if [ -n "$classes" ] && [ -n "$class" ]; then
+      case ",$classes," in *",$class,"*) ;; *) continue ;; esac
+    fi
+
+    if [ -n "$pglobs" ] && [ "$all" -eq 0 ] && [ "$(point_paths_source "$point")" != "none" ]; then
+      scope_matches_diff "$pglobs" "$paths" || continue
+    fi
+
+    [ "$gate" -eq 0 ] || blocking="advisory"
+
+    n=$((n + 1))
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$id" "$kind" "$tt" "$target" "$blocking" "$brief"
+  done <<< "$rows"
+
+  if [ "$n" -eq 0 ]; then
+    info "keel: no participants match ${point}${class:+ for class ${class}}"
+  elif [ "$gate" -eq 1 ]; then
+    printf -- '--- %d at %s. Gate verdicts are advisory: present them, the human decides.\n' "$n" "$point"
+  else
+    printf -- '--- %d at %s\n' "$n" "$point"
+  fi
+  return 0
+}
+
+# --------------------------------------------------------------------- main --
+
+case "${1:-}" in
+  workspace)
+    case "${2:-}" in
+      new)     shift 2; ws_new "${1:-}" ;;
+      current) ws_current ;;
+      list)    ws_list ;;
+      *) die "usage: keel workspace {new <slug>|current|list}" ;;
+    esac
+    ;;
+  check)        shift; run_checks "$@" ;;
+  stale)        shift; run_stale "$@" ;;
+  participants) shift; run_participants "$@" ;;
+  ""|-h|--help|help)
+    sed -n '2,/^#END-HELP/p' "$0" | grep -v '^#END-HELP' | sed 's/^# \{0,1\}//'
+    ;;
+  *) die "unknown command: $1 (try: keel help)" ;;
+esac

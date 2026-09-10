@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# SessionStart hook: inject the keel router skill into every session.
+#
+# Only using-keel is injected. It is the map; every other skill is loaded
+# on demand through the Skill tool. Keeping exactly one skill resident is
+# what stops keel from becoming a context tax.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ROUTER="${PLUGIN_ROOT}/skills/using-keel/SKILL.md"
+
+if [ ! -r "$ROUTER" ]; then
+  exit 0
+fi
+
+router_content=$(cat "$ROUTER")
+
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+escaped=$(escape_for_json "$router_content")
+context="<EXTREMELY_IMPORTANT>\nThis repository is built with keel.\n\nBelow is the full text of the 'keel:using-keel' skill — the stage map for all work in this repo. Every other keel skill is loaded on demand with the Skill tool.\n\n${escaped}\n</EXTREMELY_IMPORTANT>"
+
+printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$context"
+
+exit 0

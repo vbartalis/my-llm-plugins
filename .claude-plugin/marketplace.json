@@ -1,0 +1,13 @@
+{
+  "name": "my-llm-plugins",
+  "owner": {
+    "name": "Vilmos Bartalis"
+  },
+  "plugins": [
+    {
+      "name": "keel",
+      "source": "./plugins/keel",
+      "description": "Process spine for polyglot monorepos: orient, design, plan, build, verify, ship — with enforceable invariants."
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "surface-stale",
+  "description": "The surface this change was designed against is still current.",
+  "why": "A surface written days ago can be wrong by the time you build. A shape that moved underneath a design is the failure that costs a rebuild, and it is silent until integration.",
+  "command": "scripts/keel stale",
+  "scope": ["**/*"],
+  "severity": "blocking",
+  "layer": "repo",
+  "fixHint": "Re-run /keel:orient against the current base, reconcile surface.md, and re-gate anything the change invalidates."
+}
