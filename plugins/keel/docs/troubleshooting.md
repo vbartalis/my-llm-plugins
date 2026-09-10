@@ -61,11 +61,42 @@ scripts/keel participants --at <point>           # with scoping
 
 - If `--all` shows it and the scoped call does not, `when.paths` is not matching.
   Remember what each point scopes against: pre-build points use the `## Watch`
-  block, post-build points use the working diff.
+  block of `surface.md`, post-build points use the change.
+- If the scoped call is empty and the runner said `no base ref resolved`, it had
+  only the working tree to go on — which is empty once a task has committed.
+  Pass `--base <ref>` naming what this branch came from.
 - If neither shows it, check `when.class` against the surface's actual class,
   and watch for `keel: ignoring participant <id>` — an entry needs `id`, `at`,
   and exactly one of `agent` / `skill` / `prompt`.
-- If it is listed but nothing happens, the agent it names is not installed.
+- If it is listed but nothing happens, the agent or skill it names is not
+  installed. Note it in the ledger with the participant `id` and continue; a
+  missing plugin of someone else's is a setup gap, not a reason to stop.
+
+### `keel: surface.md Class is '...', which is not a class`
+
+The `**Class:**` line holds one word: `spike`, `local`, `cross-app`, or
+`boundary`. Most often this is the template line with all four still on it.
+
+This is an error rather than a guess on purpose. Reading the first word off that
+line resolves to `spike`, which looks like it worked and silently skips every
+class-scoped reviewer — on precisely the changes heavy enough to have registered
+some.
+
+### `keel: no .keel/participants.json in this repo`
+
+Not an error. The repo has no registry, so keel's shipped defaults are in use —
+its own implementer and reviewers, which is what every stage skill promises.
+
+`/keel:init` writes a copy into the repo, and from then on that file is the
+whole registry. Delete an entry to turn a participant off; use `[]` to turn
+every one off.
+
+### `keel: no checks registered in layer '<x>'`
+
+`--layer` selects on a check's `layer` field. Keel's conventional values are
+`constitution`, `contracts`, `design-system` and `repo`, but a repo may name its
+own — the message lists the layers that actually exist here, which is usually
+enough to spot the typo.
 
 ### A gate participant is not blocking, and I wanted it to
 
@@ -111,3 +142,18 @@ only the pointer.
 Then keel is not the right plugin for you. Add advisors to a stage freely, but
 replacing a stage is out of scope by design — that boundary is what stops keel
 becoming a kitchen sink.
+
+### Superpowers is installed too, and the agent used its skill instead
+
+Keel shares seven skill names with `superpowers`, because keel's stages are
+versions of the same ideas. Both exist — skills are namespaced — so
+`keel:brainstorming` and `superpowers:brainstorming` are different skills.
+
+In a keel repo the `keel:` one is the stage: it writes the artifact the next
+stage reads and names the successor. The other produces good work with no
+artifact and no successor, and the chain stops. `using-keel` states this, and
+the stage commands (`/keel:design` and the rest) name the skill explicitly, so
+running the command rather than describing the task avoids the question.
+
+Superpowers' non-overlapping skills — debugging, TDD, worktrees, receiving
+review — stay useful at any point. Keel does not compete with them.

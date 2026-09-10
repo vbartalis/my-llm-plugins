@@ -1,6 +1,7 @@
 ---
 name: task-reviewer
 description: Reviews one task's implementation for spec compliance and code quality. Dispatched after each implementer in the keel build loop.
+model: sonnet
 tools: Read, Bash, Glob, Grep
 ---
 

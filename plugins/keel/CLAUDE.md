@@ -20,7 +20,10 @@ add compatibility shims, manifests, or prose for other harnesses.
   no other dependency. It **resolves**; it never dispatches. `keel participants`
   says who should take part; the stage skill does the dispatching. That split is
   why adding a participant never means touching the runner.
-- **`templates/`** — what `/keel:init` copies into a repo.
+- **`templates/`** — what `/keel:init` copies into a repo. `participants.json`
+  here is also the registry a repo falls back to before init has run, so it is
+  live code, not a sample.
+- **`tests/`** — the runner's test suite. Bash, no framework.
 
 ## Where documentation goes
 
@@ -56,15 +59,32 @@ class. Never key a gate to anything.
 
 ## Testing a change
 
+**Runner changes have tests, and the tests come first.**
+
 ```
-bash -n scripts/keel
-scripts/keel help
-scripts/keel check          # against a repo with .keel/checks/ populated
+bash tests/run-tests.sh     # every suite, ~2s
+bash tests/test-check.sh    # one suite
 ```
+
+`tests/helpers.sh` gives you a throwaway git repo per test, so the runner sees a
+real `REPO_ROOT`, a real branch and a real diff. Write the failing assertion
+before the fix: the three defects in 0.5.0 were all mechanically testable and
+none was caught by reading, which is the diligence keel exists to stop relying
+on. `keel-tests` in `.keel/checks/` runs the suite, so a regression fails the
+repo's own check set.
 
 For skill changes there is no unit test. Run the stage on a real change and
 watch where the agent argues with it. A skill that gets rationalised past is a
-skill with a missing red-flag row.
+skill with a missing red-flag row. Say in the ledger which stage you ran.
+
+## Rules for editing agents
+
+**An agent's frontmatter names its model.** `.keel/participants.json` decides
+what a dispatch actually runs on, and the coordinator passes it explicitly — but
+the frontmatter is the floor under a dispatch that forgets. Without it, a
+forgotten model inherits the coordinator's, which is the expensive default the
+registry exists to stop. Keep the two in step: an agent's frontmatter model
+matches what the shipped registry gives it.
 
 ## Field separators
 

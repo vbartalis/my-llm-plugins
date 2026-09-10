@@ -1,6 +1,6 @@
 ---
 name: checking-invariants
-description: Use to run or add the repo's registered invariant checks - the mechanism that turns a rule from prose into something that exits non-zero
+description: Use when running the repo's invariant checks, or when a rule needs enforcing rather than documenting
 ---
 
 # Checking Invariants
@@ -46,8 +46,22 @@ and the registry ship with keel; the rules themselves belong to the repo.
 scripts/keel check                 # everything
 scripts/keel check --id <id>       # one check
 scripts/keel check --task <n>      # the checks the current plan's task names
-scripts/keel check --changed       # only checks whose scope matches the diff
+scripts/keel check --changed       # only checks whose scope matches the change
+scripts/keel check --base <ref>    # what "the change" is measured against
 ```
+
+`--changed` means the working tree **plus every commit since the base**. A task
+ends by committing, so a working-tree-only comparison would go empty at the
+moment the checks are supposed to run. The base is `--base`, else the branch's
+upstream, else the remote's default branch.
+
+<EXTREMELY-IMPORTANT>
+A check's `command` is shell, and `scripts/keel check` runs it. Read the
+manifests in `.keel/checks/` before running the set on a branch you did not
+write — running keel's checks on someone else's branch executes their code.
+On your own branches this is the whole point: a check is a command, which is
+what makes it enforceable where a document is not.
+</EXTREMELY-IMPORTANT>
 
 Called by `keel:subagent-driven-development` after each task, by
 `keel:verification-before-completion` in full, and by a human via

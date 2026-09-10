@@ -42,6 +42,10 @@ If `.keel/participants.json` does not exist, copy
 keel's own reviewers and its implementer as ordinary entries, so the repo can
 add or replace any of them with a line of JSON.
 
+Until that copy exists keel uses the same file from inside the plugin, so review
+is never silently off — but the copy is what makes the registry the repo's, and
+editable.
+
 Ask whether any installed plugin should take part in a stage — a design system,
 an accessibility auditor, a language reviewer. Add each as a scoped entry rather
 than an unscoped one; a reviewer that runs on every change is mostly cost. The
@@ -75,17 +79,33 @@ is inconvenient.
 
 Verify: `scripts/keel check` runs them and passes on a clean tree.
 
-## 6. Declare keel in the repo
+## 6. Confirm the base ref resolves
+
+```
+scripts/keel participants --at branch-review
+```
+
+If that prints `no base ref resolved`, the repo has no upstream and no
+`origin/HEAD`, so keel can only see uncommitted work — which goes empty as soon
+as a task commits, taking every path-scoped check and reviewer with it.
+
+Say so, and tell your partner that stages will need `--base <ref>` until the
+repo has a remote. Do not invent a branch name to paper over it.
+
+## 7. Declare keel in the repo
 
 Merge `${CLAUDE_PLUGIN_ROOT}/templates/repo-CLAUDE.md` into the repo's own
 `CLAUDE.md`, creating it if absent. Merge — never replace; existing repo
 instructions outrank everything in the template.
 
-This matters because the SessionStart hook only fires when the plugin is
-installed. The repo should state its own process so it survives a checkout by
-someone who has not installed keel.
+This matters twice over. The SessionStart hook only fires when the plugin is
+installed, so the repo should state its own process to survive a checkout by
+someone who has not installed keel. And the hook only injects the router in a
+repo that has been through this command — creating `.keel/` and `scripts/keel`
+above is what turns it on here, and what keeps it quiet in every repo that does
+not use keel.
 
-## 7. Report
+## 8. Report
 
 Say what was created, what already existed, which checks and participants are
 registered, and that the next step is `/keel:orient`.

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "keel-implementer",
+    "kind": "implementer",
+    "agent": "keel:implementer",
+    "at": "build",
+    "model": "sonnet"
+  },
+  {
+    "id": "keel-design-review",
+    "kind": "reviewer",
+    "prompt": "keel:skills/brainstorming/references/design-reviewer-prompt.md",
+    "at": "design-gate",
+    "when": { "class": ["cross-app", "boundary"] },
+    "model": "opus"
+  },
+  {
+    "id": "keel-plan-review",
+    "kind": "reviewer",
+    "prompt": "keel:skills/writing-plans/references/plan-reviewer-prompt.md",
+    "at": "plan-gate",
+    "when": { "class": ["cross-app", "boundary"] },
+    "model": "opus"
+  },
+  {
+    "id": "keel-task-review",
+    "kind": "reviewer",
+    "agent": "keel:task-reviewer",
+    "at": "task-review",
+    "blocking": true,
+    "model": "sonnet"
+  },
+  {
+    "id": "keel-code-review",
+    "kind": "reviewer",
+    "prompt": "keel:skills/requesting-code-review/code-reviewer.md",
+    "at": "branch-review",
+    "blocking": true,
+    "model": "opus"
+  },
+  {
+    "id": "keel-invariant-review",
+    "kind": "reviewer",
+    "agent": "keel:invariant-reviewer",
+    "at": "branch-review",
+    "blocking": true,
+    "when": { "class": ["cross-app", "boundary"] },
+    "model": "sonnet"
+  }
+]

@@ -1,6 +1,6 @@
 ---
 name: writing-plans
-description: Use after a design is approved and before any implementation - breaks the design into independently testable tasks, producing plan.md
+description: Use when a design is approved and before any implementation begins
 ---
 
 # Writing Plans

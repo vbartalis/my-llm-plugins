@@ -1,6 +1,6 @@
 ---
 name: subagent-driven-development
-description: Use to execute an approved plan in this session - dispatches a fresh implementer subagent per task with review after each, recording everything in the ledger
+description: Use when executing an approved plan in the current session with subagents available
 ---
 
 # Subagent-Driven Development

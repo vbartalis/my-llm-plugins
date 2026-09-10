@@ -3,10 +3,15 @@
 Copy this into the feature workspace and fill it. Never delete a section —
 write "None." Empty sections are information.
 
+**`Class` holds one word.** Every later stage reads it, and `keel participants`
+scopes reviewers by it. A `Class` line the runner cannot read stops the stage
+with an error naming what it found, rather than resolving to something plausible
+and quietly skipping the reviewers a heavier change needs.
+
 ```markdown
 # Surface: <change name>
 
-**Class:** spike | local | cross-app | boundary
+**Class:** <exactly one of: spike, local, cross-app, boundary>
 **Date:** YYYY-MM-DD
 **One line:** <what changes, from the outside>
 

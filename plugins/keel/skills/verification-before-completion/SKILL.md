@@ -1,6 +1,6 @@
 ---
 name: verification-before-completion
-description: Use after a build completes and before shipping - proves the change works with evidence rather than claims
+description: Use when a build has finished, before claiming it works or shipping it
 ---
 
 # Verification Before Completion

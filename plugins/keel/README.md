@@ -53,7 +53,10 @@ does not enforce anything, and a rule worth having is worth a check.
 ```
 
 A `SessionStart` hook injects exactly one skill — `using-keel`, the stage map.
-Everything else loads on demand. One resident skill is the whole context cost.
+Everything else loads on demand. One resident skill is the whole context cost,
+and it costs nothing at all in a repo that does not use keel: the hook stays
+quiet until `/keel:init` has run, so installing the plugin does not announce
+itself in every project on the machine.
 
 ## Set up a repo
 
@@ -97,7 +100,13 @@ it already exists. An **implementer** is the agent that executes one task.
 Ten attachment points, scoped by path and surface class so a Go-only change
 never pays for a UI reviewer. Keel's own reviewers and its implementer are
 entries in the same registry, so adding one is a line and replacing one of
-keel's is deleting a line.
+keel's is deleting a line. A repo with no file yet gets that same registry from
+inside the plugin — review is never silently off — and `[]` is how you turn
+everything off deliberately.
+
+Path scoping spans commits, not just the working tree. A task ends by
+committing, so comparing against uncommitted work alone would skip every scoped
+reviewer at exactly the moment review runs.
 
 Every entry names the **model** it runs on — `opus`, `sonnet`, `haiku`,
 `fable`, or `inherit` — so what keel spends is decided in one file rather than
@@ -134,6 +143,7 @@ agents/          implementer, task-reviewer, invariant-reviewer
 commands/        thin entry points; the substance is in the skills
 scripts/keel     workspace, check and participant runner
 templates/       what /keel:init copies into a repo, including checks/
+tests/           the runner's test suite — bash, no framework
 docs/            human-facing: walkthrough, glossary, troubleshooting
 ```
 
@@ -176,5 +186,13 @@ need any of those, that is a defect in keel to be fixed in the spine.
 ## What keel does not own
 
 Tactics — debugging technique, test design, language idiom. Keel owns the shape
-of the work, not how you write a for-loop. Other plugins covering those are
-compatible by construction, because keel claims exactly one layer and says so.
+of the work, not how you write a for-loop. Plugins covering those compose with
+keel cleanly, because keel claims exactly one layer and says so.
+
+A plugin that claims the **same** layer is a different matter, and `superpowers`
+is one: keel's stages are versions of its ideas, and seven skill names overlap.
+Both can be installed — skills are namespaced, so `keel:brainstorming` and
+`superpowers:brainstorming` coexist — and inside a keel repo the `keel:` one
+wins, because it is the stage that writes the artifact and names the successor.
+`using-keel` states that rule where an agent will actually read it. Superpowers'
+non-overlapping skills stay useful throughout; keel does not replace them.

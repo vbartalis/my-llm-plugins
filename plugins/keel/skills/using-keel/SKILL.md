@@ -133,6 +133,23 @@ Direct instructions from your human partner override keel. `CLAUDE.md` in this
 repo overrides keel. Keel overrides your defaults. When your partner tells you
 to skip a stage, skip it and say which one you skipped.
 
+**When another process plugin is installed.** Keel shares several skill names
+with `superpowers` — `brainstorming`, `writing-plans`,
+`subagent-driven-development`, `executing-plans`,
+`verification-before-completion`, `finishing-a-development-branch`,
+`requesting-code-review` — because keel's stages are versions of the same ideas.
+Skills are namespaced, so both exist: `keel:brainstorming` and
+`superpowers:brainstorming` are different skills.
+
+In this repo, **invoke the `keel:` one.** It is the stage, it writes the
+artifact this repo's later stages read, and it names the successor that keeps
+the chain intact. Invoking the other one produces good work with no artifact and
+no successor, and the next stage then has nothing to read.
+
+Everything that plugin covers and keel does not — debugging technique, TDD
+mechanics, worktrees, receiving review — is yours to use freely and at any
+point. Keel claims the shape of the work, not the tactics inside a task.
+
 ## What Keel Does Not Own
 
 Keel owns process. It deliberately does not own:

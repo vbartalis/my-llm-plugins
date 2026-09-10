@@ -1,6 +1,6 @@
 ---
 name: requesting-code-review
-description: Use to dispatch a fresh reviewer against a branch or a diff at any point - independent of the stage pipeline
+description: Use when a branch or a diff needs a fresh reviewer, at any point in or out of the pipeline
 ---
 
 # Requesting Code Review

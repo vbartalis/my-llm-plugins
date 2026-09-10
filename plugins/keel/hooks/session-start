@@ -15,6 +15,19 @@ if [ ! -r "$ROUTER" ]; then
   exit 0
 fi
 
+# Inject only where keel is actually set up.
+#
+# The plugin is installed per machine, not per repo, so without this the router
+# claims "this repository is built with keel" in every session in every repo,
+# and sends the agent looking for a stage in projects that have none. A repo
+# opts in by having been through /keel:init — which is also what makes the
+# claim true. The commands stay available either way, so /keel:init still works
+# from a repo the hook stays quiet in.
+PROJECT="${CLAUDE_PROJECT_DIR:-$PWD}"
+if [ ! -e "${PROJECT}/.keel" ] && [ ! -e "${PROJECT}/scripts/keel" ] && [ ! -e "${PROJECT}/docs/keel" ]; then
+  exit 0
+fi
+
 router_content=$(cat "$ROUTER")
 
 escape_for_json() {

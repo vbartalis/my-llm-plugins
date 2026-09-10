@@ -10,7 +10,7 @@
   "command": "string, required, shell command run from repo root",
   "scope": ["array of globs, required, relative to repo root"],
   "severity": "blocking | advisory, required",
-  "layer": "constitution | contracts | design-system | repo, required",
+  "layer": "string, required, provenance — see below",
   "fixHint": "string, optional, what a fix usually looks like"
 }
 ```
@@ -36,9 +36,17 @@ reported and appended to the ledger, and is reviewed at verification. Use
 `advisory` only while a check is being introduced against existing violations;
 promote it to `blocking` once the tree is clean, or delete it.
 
-**`layer`** — provenance. `constitution` checks come from repo law.
-`contracts` and `design-system` are reserved for the planned layers. `repo`
-is everything else. The runner groups output by layer.
+The two values are the whole set: a manifest with any other severity is reported
+and skipped, because a check whose severity nobody can read is a check nobody
+can act on.
+
+**`layer`** — provenance, and the unit `keel check --layer` selects. Keel's four
+conventional values are `constitution` (repo law), `contracts` and
+`design-system` (reserved for the planned layers), and `repo` (everything else).
+
+A repo may name its own — `infra`, `security`, `data` — and the runner will
+group and filter by it. `--layer` naming a layer no check carries reports the
+layers that do exist rather than running nothing and calling it a pass.
 
 **`fixHint`** — surfaced to implementers when the check fails, so a fix round
 starts from the right place. Optional, cheap, worth writing.

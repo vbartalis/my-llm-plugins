@@ -1,6 +1,6 @@
 ---
 name: orienting
-description: Use at the start of any change in this monorepo, before designing or coding - establishes which apps and boundaries the change touches and what class of change it is
+description: Use when starting any change in this monorepo, before designing or coding
 ---
 
 # Orienting

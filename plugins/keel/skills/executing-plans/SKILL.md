@@ -1,6 +1,6 @@
 ---
 name: executing-plans
-description: Use to execute an approved plan when subagents are unavailable - the solo fallback for subagent-driven-development
+description: Use when executing an approved plan and subagent dispatch is unavailable
 ---
 
 # Executing Plans

@@ -51,7 +51,45 @@ replacing one of keel's is deleting a line. There is no separate mechanism for
 | `brief` | `artifacts`, `diff`, or `both`. What the participant is given. |
 | `model` | What to dispatch on. Absent means `sonnet`. See below. |
 
-`prompt` values starting `keel:` are relative to the plugin root.
+## The registry keel ships
+
+A repo with no `.keel/participants.json` gets the one bundled with the plugin —
+keel's own implementer and reviewers, the defaults every stage skill names. That
+is what makes those promises true before `/keel:init` has run.
+
+`/keel:init` copies it into the repo, and from then on the repo's file is the
+whole registry: keel adds nothing behind it. Turn a participant off by deleting
+its entry, and turn every one off with an empty array `[]`. Both are things the
+file says, which is the point — no dispatch keel makes is invisible to it.
+
+## Naming a target
+
+`agent` names a subagent the harness can dispatch. Plugin agents are scoped:
+`keel:implementer`, `design-system:ux-reviewer`.
+
+`skill` names a skill to invoke, scoped the same way:
+`design-system:designing-a-component`.
+
+`prompt` names a file to read and send. The runner resolves it to a path you can
+open and prints that path in the row:
+
+| Written as | Resolves to |
+|---|---|
+| `keel:skills/…/code-reviewer.md` | that file inside the installed keel plugin |
+| `other-plugin:prompts/x.md` | that file inside that installed plugin |
+| `.keel/prompts/mine.md` | that file in this repo |
+| `/abs/path.md` | itself |
+
+A prompt the runner cannot locate is printed as written, with a line on stderr
+naming it — usually the plugin that provides it is not installed.
+
+## When a participant is not installed
+
+Say so and carry on. A registry entry is a repo's statement of intent, and an
+entry naming an agent or skill this machine does not have is a setup gap, not a
+reason to stop the stage. Note it in the ledger with the participant `id` so the
+gap is visible, and continue — a stage that halts because someone else's plugin
+is missing punishes the wrong person.
 
 ## Three kinds
 
@@ -92,6 +130,13 @@ Before a build there is no diff, so pre-build points scope against what the
 change *will* touch — the `## Watch` block of `surface.md`. After a build they
 scope against what it *did*.
 
+"What it did" is the working tree **plus every commit since the base ref**. That
+matters because a task's last step is a commit: scoping against the working tree
+alone would go empty the moment a task finished, and skip every path-scoped
+participant on exactly the work it was registered for. The base is `--base`, or
+the branch's upstream, or the remote's default branch — no branch name is
+hardwired, and when none resolves the runner says so and uses the working tree.
+
 `build` scopes against neither. It resolves once per task, before that task has
 written anything, and the runner does not know which files the task names — so
 path globs on an implementer entry would silently never match. Use
@@ -100,8 +145,12 @@ path globs on an implementer entry would silently never match. Use
 ## Model
 
 `model` is what to dispatch the participant on: `opus`, `sonnet`, `haiku`,
-`fable`, or `inherit` for the session's own. Omitted means `sonnet`. The set is
-closed, so a typo is reported by the runner rather than failing at dispatch.
+`fable`, or `inherit` for the session's own. Omitted means `sonnet`.
+
+Those five pass silently. Anything else passes too — a specific model id, or one
+released after this version of keel — and the runner says so on stderr as it
+resolves. So a typo still surfaces in the same place a rejection would have, and
+naming a model keel has not heard of does not mean waiting for a keel release.
 
 `sonnet` is the floor, not `haiku`. Cost tracks turns, not tokens per turn, and
 the cheapest model routinely takes two to three times the turns on multi-step

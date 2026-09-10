@@ -1,0 +1,10 @@
+{
+  "id": "keel-tests",
+  "description": "The keel runner's test suite passes.",
+  "why": "Three runner defects shipped in 0.5.0 — path scoping went empty the moment a task committed, an unedited Class line resolved to spike, and a missing registry silently meant no review at all. All three were mechanically testable and none was caught by reading. Reading is exactly the diligence keel says not to rely on.",
+  "command": "bash plugins/keel/tests/run-tests.sh",
+  "scope": ["plugins/keel/scripts/**", "plugins/keel/tests/**", "plugins/keel/templates/participants.json"],
+  "severity": "blocking",
+  "layer": "repo",
+  "fixHint": "Run `bash plugins/keel/tests/run-tests.sh` to see which assertion failed; each one prints what it got."
+}

@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: Use after orienting and before any planning or code - turns a request into an agreed design through dialogue, producing design.md
+description: Use when the surface is agreed and the change needs a design, before any planning or code
 ---
 
 # Brainstorming

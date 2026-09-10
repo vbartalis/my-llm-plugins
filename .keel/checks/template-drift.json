@@ -1,0 +1,10 @@
+{
+  "id": "template-drift",
+  "description": "This repo's installed copies of keel's templates match the templates they came from.",
+  "why": "The wrapper and the shipped checks exist twice — as templates and as what this repo actually runs. Editing one copy leaves the plugin shipping something nobody here exercises, and both files stay valid, so nothing else notices.",
+  "command": "scripts/checks/template-drift.sh",
+  "scope": ["plugins/keel/templates/**", "scripts/**", ".keel/checks/**"],
+  "severity": "blocking",
+  "layer": "repo",
+  "fixHint": "Copy the changed file over its counterpart, then re-run. The template is the source of truth."
+}

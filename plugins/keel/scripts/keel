@@ -8,17 +8,25 @@
 #   keel check [options]          run registered invariant checks
 #     --id <id>                   run one check
 #     --task <n>                  run the checks named by task <n> of the current plan
-#     --changed                   run only checks whose scope matches the working diff
-#     --layer <layer>             constitution | contracts | design-system | repo
+#     --changed                   run only checks whose scope matches the change
+#     --base <ref>                what the change is measured against
+#     --layer <layer>             only checks carrying this layer
 #
 #   keel participants --at <point>  who takes part at this point
 #     --class <class>             override the surface class
+#     --base <ref>                what the change is measured against
 #     --all                       ignore path scoping
 #     points: orient surface-gate design design-gate plan plan-gate
 #             build task-review branch-review verify
 #     rows:   id kind target_type target blocking brief model
 #     model:  opus | sonnet | haiku | fable | inherit — dispatch on this.
 #             Omitted means sonnet. Advisors have none and show `-`.
+#
+#   The change is the working tree plus every commit since the base ref, so
+#   scoping keeps working after a task commits. The base is --base, else the
+#   branch's upstream, else the remote's default branch. No branch name is
+#   hardwired; when none resolves, the working tree alone is used and the
+#   runner says so on stderr.
 #
 # Exit: 0 all blocking checks passed, 1 a blocking check failed, 2 usage error.
 #END-HELP
@@ -29,8 +37,57 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 FEATURES_DIR="${REPO_ROOT}/docs/keel/features"
 CHECKS_DIR="${REPO_ROOT}/.keel/checks"
 
+# The installed plugin. `keel:`-prefixed prompt targets resolve against this,
+# and it holds the default participant registry a repo inherits before it
+# writes its own.
+PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 die()  { printf 'keel: %s\n' "$*" >&2; exit 2; }
 info() { printf '%s\n' "$*"; }
+warn() { printf 'keel: %s\n' "$*" >&2; }
+
+# ------------------------------------------------------------------- change --
+
+# What the change is measured against. Explicit --base wins; then the branch's
+# own upstream; then the remote's default branch. Nothing is hardwired, because
+# a repo's trunk is not keel's to assume — some call it main, some develop, some
+# have no remote at all.
+resolve_base() {
+  local explicit="${1:-}" ref
+  if [ -n "$explicit" ]; then printf '%s' "$explicit"; return 0; fi
+  ref="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)"
+  [ -z "$ref" ] || { printf '%s' "$ref"; return 0; }
+  ref="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)"
+  [ -z "$ref" ] || { printf '%s' "$ref"; return 0; }
+  return 1
+}
+
+# Every path the change touches: the working tree, the index, untracked files,
+# AND every commit since the base.
+#
+# The committed half is what makes this correct. A task's last step is a commit,
+# so by the time task-review, branch-review or verify resolve, the working tree
+# is clean — scoping against it alone silently skips every path-scoped check and
+# participant on exactly the work they were registered for.
+changed_paths() {
+  local explicit="${1:-}" base mb
+  base="$(resolve_base "$explicit")" || base=""
+  if [ -z "$base" ]; then
+    warn "no base ref resolved (no --base, no upstream, no origin/HEAD) — scoping against the working tree only"
+  fi
+  {
+    git diff --name-only
+    git diff --name-only --cached
+    git ls-files --others --exclude-standard
+    if [ -n "$base" ]; then
+      if mb="$(git merge-base "$base" HEAD 2>/dev/null)" && [ -n "$mb" ]; then
+        git diff --name-only "$mb" HEAD
+      else
+        warn "base ref '${base}' does not resolve — scoping against the working tree only"
+      fi
+    fi
+  } 2>/dev/null | sort -u
+}
 
 # ---------------------------------------------------------------- workspace --
 
@@ -72,16 +129,25 @@ read_manifests() {
   compgen -G "$CHECKS_DIR/*.json" >/dev/null 2>&1 || return 0
 
   if command -v jq >/dev/null 2>&1; then
-    local f
+    local f out
     for f in "$CHECKS_DIR"/*.json; do
-      jq -r --arg f "$f" '
+      # Report what actually went wrong. A blanket "not valid JSON" sent the
+      # last reader bug three files deep before anyone doubted the message.
+      if out="$(jq -r --arg f "$f" '
         ["id","description","command","scope","severity","layer"] as $need
         | ($need - (. | keys)) as $missing
+        | (.severity // "") as $sev
         | if ($missing | length) > 0
           then "!BAD\u001f\($f)\u001fmissing fields: \($missing | join(", "))"
+          elif (["blocking","advisory"] | index($sev)) == null
+          then "!BAD\u001f\($f)\u001fseverity must be blocking or advisory, not \"\($sev)\""
           else [.id, .severity, .layer, .command, .description, (.scope | join(","))] | join("\u001f")
           end
-      ' "$f" 2>/dev/null || printf '!BAD\x1f%s\x1fnot valid JSON\n' "$f"
+      ' "$f" 2>&1)"; then
+        printf '%s\n' "$out"
+      else
+        printf '!BAD\x1f%s\x1f%s\n' "$f" "$(printf '%s' "$out" | head -1)"
+      fi
     done
   elif command -v python3 >/dev/null 2>&1; then
     python3 - "$CHECKS_DIR" <<'PY'
@@ -95,6 +161,8 @@ for path in sorted(glob.glob(os.path.join(sys.argv[1], "*.json"))):
     missing = [k for k in NEED if k not in m]
     if missing:
         print(f"!BAD\u001f{path}\u001fmissing fields: {', '.join(missing)}"); continue
+    if m["severity"] not in ("blocking", "advisory"):
+        print(f'!BAD\u001f{path}\u001fseverity must be blocking or advisory, not "{m["severity"]}"'); continue
     scope = ",".join(m["scope"]) if isinstance(m["scope"], list) else str(m["scope"])
     print("\x1f".join([m["id"], m["severity"], m["layer"], m["command"], m["description"], scope]))
 PY
@@ -162,12 +230,13 @@ task_check_ids() {
 }
 
 run_checks() {
-  local only_id="" only_layer="" task_n="" changed_only=0
+  local only_id="" only_layer="" task_n="" changed_only=0 base=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --id)      only_id="${2:-}";    [ -n "$only_id" ]    || die "--id needs a value";    shift 2 ;;
       --layer)   only_layer="${2:-}"; [ -n "$only_layer" ] || die "--layer needs a value"; shift 2 ;;
       --task)    task_n="${2:-}";     [ -n "$task_n" ]     || die "--task needs a value";  shift 2 ;;
+      --base)    base="${2:-}";       [ -n "$base" ]       || die "--base needs a value";  shift 2 ;;
       --changed) changed_only=1; shift ;;
       *) die "unknown option: $1" ;;
     esac
@@ -205,12 +274,20 @@ run_checks() {
     fi
   fi
 
-  local changed=""
-  if [ "$changed_only" -eq 1 ]; then
-    changed="$( { git diff --name-only
-                  git diff --name-only --cached
-                  git ls-files --others --exclude-standard; } 2>/dev/null | sort -u )"
+  # A layer nobody registered is a typo or a layer that has not landed yet.
+  # Either way, saying which layers do exist beats printing "0 ran".
+  if [ -n "$only_layer" ]; then
+    local have
+    have="$(printf '%s\n' "$manifests" | cut -d"$(printf '\037')" -f3 | sort -u | paste -sd', ' -)"
+    case ",${have//, /,}," in
+      *",${only_layer},"*) ;;
+      *) info "keel: no checks registered in layer '${only_layer}' — registered layers: ${have:-none}"
+         return 0 ;;
+    esac
   fi
+
+  local changed=""
+  [ "$changed_only" -eq 0 ] || changed="$(changed_paths "$base")"
 
   local failed=0 ran=0 skipped=0 advisories=0
   local id sev layer cmd desc scope out rc
@@ -251,11 +328,23 @@ run_checks() {
 
 # --------------------------------------------------------------- artifacts --
 
-# Read a "**Field:** value" line out of a workspace artifact.
-md_field() {
-  local file="$1" name="$2"
+CLASSES="spike local cross-app boundary"
+
+# The whole value of surface.md's Class line, not just its first word.
+#
+# Reading only the first word is what let the unedited template line
+# "**Class:** spike | local | cross-app | boundary" resolve to `spike` — which
+# silently skipped every class-scoped participant on the heaviest changes.
+# Taking the whole value means the placeholder fails validation instead.
+md_class() {
+  local file="$1"
   [ -f "$file" ] || return 1
-  sed -n "s/^\*\*${name}:\*\*[[:space:]]*//p" "$file" | head -1 | tr -d '`' | awk '{print $1}'
+  sed -n 's/^\*\*Class:\*\*[[:space:]]*//p' "$file" | head -1 \
+    | tr -d '`' | sed 's/[[:space:]]*$//'
+}
+
+valid_class() {
+  case " $CLASSES " in *" $1 "*) return 0 ;; *) return 1 ;; esac
 }
 
 # Lines inside the first fenced block under a "## <Heading>" section.
@@ -272,7 +361,21 @@ md_fenced() {
 
 # ------------------------------------------------------------ participants --
 
-PARTICIPANTS_FILE="${REPO_ROOT}/.keel/participants.json"
+REPO_PARTICIPANTS="${REPO_ROOT}/.keel/participants.json"
+DEFAULT_PARTICIPANTS="${PLUGIN_ROOT}/templates/participants.json"
+
+# The repo's registry when it has one, the shipped defaults otherwise.
+#
+# Keel's own reviewers and implementer live in the same registry as everyone
+# else's, so "no file" has to mean "keel's defaults" rather than "no review at
+# all" — every stage skill promises those defaults by name. A repo turns a
+# participant off by deleting its line, and turns everything off with an empty
+# array; both are statements the file makes, which is the point.
+participants_file() {
+  if [ -f "$REPO_PARTICIPANTS" ]; then printf '%s' "$REPO_PARTICIPANTS"; return 0; fi
+  [ -f "$DEFAULT_PARTICIPANTS" ] || return 1
+  printf '%s' "$DEFAULT_PARTICIPANTS"
+}
 
 # Valid attachment points, and where each one gets its paths from.
 #   none  — nothing has been decided yet
@@ -295,22 +398,26 @@ point_paths_source() {
 # classes, paths
 #
 # `model` is what the caller dispatches this participant on, passed through to
-# the harness verbatim: an alias, or `inherit` for the session's own model. The
-# set is closed so a typo fails here rather than at dispatch. Reviewers and
-# implementers get `sonnet` when the entry omits one — never the session's
-# model, which is the expensive default this field exists to stop. Advisors get
-# `-`: an advisor is a skill invoked in the coordinator's own context, so there
-# is no subagent to give a model to, and an entry that sets one has
-# misunderstood what an advisor is.
+# the harness verbatim: an alias, or `inherit` for the session's own model.
+# Keel's five aliases pass silently; anything else passes too but says so on
+# stderr, so a repo can name a model keel has never heard of without waiting for
+# a keel release, and a typo still surfaces at resolve time rather than at
+# dispatch. Reviewers and implementers get `sonnet` when the entry omits one —
+# never the session's model, which is the expensive default this field exists to
+# stop. Advisors get `-`: an advisor is a skill invoked in the coordinator's own
+# context, so there is no subagent to give a model to, and an entry that sets one
+# has misunderstood what an advisor is.
 #
 # The separator is passed in rather than written as an escape, so the two
 # readers agree on it by construction.
 read_participants() {
-  [ -f "$PARTICIPANTS_FILE" ] || return 0
+  local PARTICIPANTS_FILE
+  PARTICIPANTS_FILE="$(participants_file)" || return 0
   local US; US="$(printf '\037')"
 
   if command -v jq >/dev/null 2>&1; then
-    jq -r --arg US "$US" '
+    local out
+    if out="$(jq -r --arg US "$US" '
       if type != "array"
       then ("!BAD" + $US + "participants.json" + $US + "must be a JSON array")
       else .[] |
@@ -324,17 +431,21 @@ read_participants() {
           then "!BAD" + $US + .id + $US + "kind must be advisor, reviewer, or implementer"
           elif $k == "advisor" and $m != ""
           then "!BAD" + $US + .id + $US + "advisors run in your context — they have no model"
-          elif $m != "" and (["opus","sonnet","haiku","fable","inherit"] | index($m)) == null
-          then "!BAD" + $US + .id + $US + "model must be opus, sonnet, haiku, fable, or inherit"
-          else [ .id, $k, $tt, $t, .at,
-                 (if .blocking == true then "blocking" else "advisory" end),
-                 (.brief // "artifacts"),
-                 (if $k == "advisor" then "-" elif $m == "" then "sonnet" else $m end),
-                 ((.when.class // []) | join(",")),
-                 ((.when.paths // []) | join(",")) ] | join($US)
+          else ( if $m != "" and (["opus","sonnet","haiku","fable","inherit"] | index($m)) == null
+                 then "!WARN" + $US + .id + $US + "model \"" + $m + "\" is not a keel alias — passing it to the harness as written"
+                 else empty end ),
+               ( [ .id, $k, $tt, $t, .at,
+                   (if .blocking == true then "blocking" else "advisory" end),
+                   (.brief // "artifacts"),
+                   (if $k == "advisor" then "-" elif $m == "" then "sonnet" else $m end),
+                   ((.when.class // []) | join(",")),
+                   ((.when.paths // []) | join(",")) ] | join($US) )
           end
-      end' "$PARTICIPANTS_FILE" 2>/dev/null \
-      || printf '!BAD\x1fparticipants.json\x1fnot valid JSON\n'
+      end' "$PARTICIPANTS_FILE" 2>&1)"; then
+      printf '%s\n' "$out"
+    else
+      printf '!BAD\x1f%s\x1f%s\n' "$PARTICIPANTS_FILE" "$(printf '%s' "$out" | head -1)"
+    fi
   elif command -v python3 >/dev/null 2>&1; then
     python3 - "$PARTICIPANTS_FILE" <<'PY'
 import json, sys
@@ -344,6 +455,9 @@ MODELS = ("opus", "sonnet", "haiku", "fable", "inherit")
 
 def bad(who, why):
     print(US.join(["!BAD", who, why]))
+
+def warn(who, why):
+    print(US.join(["!WARN", who, why]))
 
 try:
     doc = json.load(open(sys.argv[1]))
@@ -363,7 +477,7 @@ for p in doc:
     if k == "advisor" and m:
         bad(p["id"], "advisors run in your context — they have no model"); continue
     if m and m not in MODELS:
-        bad(p["id"], "model must be opus, sonnet, haiku, fable, or inherit"); continue
+        warn(p["id"], f'model "{m}" is not a keel alias — passing it to the harness as written')
     w = p.get("when") or {}
     print(US.join([
         p["id"], k, tt, t, p["at"],
@@ -382,35 +496,62 @@ PY
 
 # Paths this point should scope against, one per line.
 paths_for_point() {
-  local point="$1" ws src
+  local point="$1" base="${2:-}" ws src
   src="$(point_paths_source "$point")" || return 1
   case "$src" in
     none) return 0 ;;
     watch)
       ws="$(ws_current 2>/dev/null)" || return 0
-      md_fenced "${ws}/surface.md" Watch 2>/dev/null || true
+      md_fenced "${ws}/surface.md" Watch 2>/dev/null | grep -v '^[[:space:]]*#' || true
       ;;
-    diff)
-      { git diff --name-only
-        git diff --name-only --cached
-        git ls-files --others --exclude-standard; } 2>/dev/null | sort -u
-      ;;
+    diff) changed_paths "$base" ;;
+  esac
+}
+
+# A `prompt` target as a path the caller can open.
+#
+# The registry names a prompt by plugin — `keel:skills/.../reviewer.md` — because
+# the file lives inside an installed plugin whose location the repo has no reason
+# to know. Resolving it here is what makes that name usable: the runner knows
+# where keel is, and finds another plugin the same way the repo wrapper does.
+# Anything unresolvable is handed back as written, with a line on stderr, so a
+# caller sees the name it could not open rather than silence.
+resolve_prompt_target() {
+  local target="$1" plug rel base hit
+  case "$target" in
+    /*)     printf '%s' "$target"; return 0 ;;
+    keel:*) printf '%s/%s' "$PLUGIN_ROOT" "${target#keel:}"; return 0 ;;
+    *:*)
+      plug="${target%%:*}"; rel="${target#*:}"
+      base="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins"
+      hit="$(find "$base" -type f -path "*/${plug}/${rel}" 2>/dev/null | sort -r | head -1)"
+      [ -n "$hit" ] && { printf '%s' "$hit"; return 0; }
+      printf '%s' "$target"; return 1 ;;
+    *)
+      [ -f "${REPO_ROOT}/${target}" ] && { printf '%s/%s' "$REPO_ROOT" "$target"; return 0; }
+      printf '%s' "$target"; return 1 ;;
   esac
 }
 
 run_participants() {
-  local point="" class="" all=0
+  local point="" class="" all=0 base=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --at)    point="${2:-}"; [ -n "$point" ] || die "--at needs a value"; shift 2 ;;
       --class) class="${2:-}"; [ -n "$class" ] || die "--class needs a value"; shift 2 ;;
+      --base)  base="${2:-}";  [ -n "$base" ]  || die "--base needs a value";  shift 2 ;;
       --all)   all=1; shift ;;
       *) die "unknown option: $1" ;;
     esac
   done
-  [ -n "$point" ] || die "usage: keel participants --at <point> [--class <class>] [--all]"
+  [ -n "$point" ] || die "usage: keel participants --at <point> [--class <class>] [--base <ref>] [--all]"
   point_paths_source "$point" >/dev/null || die "unknown attachment point: $point
 points: orient surface-gate design design-gate plan plan-gate build task-review branch-review verify"
+  [ -z "$class" ] || valid_class "$class" || die "unknown class: $class
+classes: $CLASSES"
+
+  local source_file
+  source_file="$(participants_file)" || true
 
   local rows
   rows="$(read_participants)" || return 2
@@ -422,28 +563,51 @@ points: orient surface-gate design design-gate plan plan-gate build task-review 
       printf 'keel: ignoring participant %s — %s\n' "$who" "$reason" >&2
     done
   fi
-  rows="$(printf '%s\n' "$rows" | grep -v '^!BAD' || true)"
+  local warned
+  warned="$(printf '%s\n' "$rows" | grep '^!WARN' || true)"
+  if [ -n "$warned" ]; then
+    printf '%s\n' "$warned" | while IFS=$'\x1f' read -r _ who reason; do
+      printf 'keel: participant %s — %s\n' "$who" "$reason" >&2
+    done
+  fi
+  rows="$(printf '%s\n' "$rows" | grep -v '^!BAD' | grep -v '^!WARN' || true)"
+
+  if [ "$source_file" = "$DEFAULT_PARTICIPANTS" ]; then
+    warn "no .keel/participants.json in this repo — using keel's shipped defaults; /keel:init writes a copy you can edit"
+  fi
 
   if [ -z "${rows//[[:space:]]/}" ]; then
     info "keel: no participants registered for ${point}"
-    [ -f "$PARTICIPANTS_FILE" ] || info "      .keel/participants.json does not exist — keel's defaults apply"
     return 0
   fi
 
   # Surface class: given, or read from the current workspace.
+  #
+  # An unreadable Class is an error rather than a silent pass. The template
+  # ships the four options on one line, and treating that unedited line as a
+  # class would quietly disable every class-scoped participant on precisely the
+  # changes that need them most.
   if [ -z "$class" ]; then
-    local ws
-    ws="$(ws_current 2>/dev/null)" && class="$(md_field "${ws}/surface.md" Class 2>/dev/null || true)"
+    local ws raw
+    if ws="$(ws_current 2>/dev/null)" && [ -f "${ws}/surface.md" ]; then
+      raw="$(md_class "${ws}/surface.md" || true)"
+      if [ -n "$raw" ]; then
+        valid_class "$raw" || die "surface.md Class is '${raw}', which is not a class
+classes: $CLASSES
+if that is still the template line, pick one and delete the rest"
+        class="$raw"
+      fi
+    fi
   fi
 
   local paths=""
-  [ "$all" -eq 1 ] || paths="$(paths_for_point "$point")"
+  [ "$all" -eq 1 ] || paths="$(paths_for_point "$point" "$base")"
 
   # Gates are advisory by construction: agents inform gates, humans decide them.
   local gate=0
   case "$point" in *-gate) gate=1 ;; esac
 
-  local id kind tt target at blocking brief model classes pglobs
+  local id kind tt target at blocking brief model classes pglobs resolved
   local n=0 impls=0 impl_ids=""
   while IFS=$'\x1f' read -r id kind tt target at blocking brief model classes pglobs; do
     [ -n "$id" ] || continue
@@ -462,6 +626,12 @@ points: orient surface-gate design design-gate plan plan-gate build task-review 
     if [ "$kind" = "implementer" ]; then
       impls=$((impls + 1))
       impl_ids="${impl_ids:+${impl_ids}, }${id}"
+    fi
+
+    if [ "$tt" = "prompt" ]; then
+      resolved="$(resolve_prompt_target "$target")" \
+        || warn "participant ${id} — cannot locate prompt '${target}'; is the plugin that provides it installed?"
+      target="$resolved"
     fi
 
     n=$((n + 1))

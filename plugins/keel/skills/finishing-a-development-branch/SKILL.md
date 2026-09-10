@@ -1,6 +1,6 @@
 ---
 name: finishing-a-development-branch
-description: Use after verification passes - lands the work, cleans up the workspace, and closes the feature workspace
+description: Use when verification has passed and the work needs to land
 ---
 
 # Finishing A Development Branch
