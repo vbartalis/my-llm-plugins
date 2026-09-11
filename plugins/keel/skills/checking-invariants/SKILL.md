@@ -53,8 +53,8 @@ scripts/keel base                  # what it resolves to here, and why
 
 `--changed` means the working tree **plus every commit since the base**. A task
 ends by committing, so a working-tree-only comparison would go empty at the
-moment the checks are supposed to run. The base is `--base`, else the branch's
-upstream, else the remote's default branch.
+moment the checks are supposed to run. The base is `--base`, else the `**Base:**`
+line `surface.md` recorded when the work started. Keel does not guess it.
 
 <EXTREMELY-IMPORTANT>
 A check's `command` is shell, and `scripts/keel check` runs it. Read the

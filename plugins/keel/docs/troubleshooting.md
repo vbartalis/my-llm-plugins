@@ -78,44 +78,42 @@ scripts/keel participants --at <point>           # with scoping
 scripts/keel base
 ```
 
-That says what keel is measuring the change against, where it got it, and — if
-there is none — how to set one.
+That says what keel is measuring the change against and where it got it.
 
-**What a base ref is for.** "The change" is the working tree plus every commit
-since the base. A task's last step is a commit, so without a base, finished
-tasks stop counting and every path-scoped check and reviewer stops matching.
+**What it is.** The branch this work forked from. "The change" is the working
+tree plus every commit since it — a task's last step is a commit, so without a
+base, finished tasks stop counting and path-scoped checks and reviewers stop
+matching.
 
-**Where keel looks**, in order, hardwiring no branch name:
+**Where it comes from.** `surface.md` records it as `**Base:**` when orienting
+runs, because that is the moment it is known: you are standing on the branch
+you are about to fork from. `--base <ref>` overrides it for one run. There is
+no third source.
 
-1. `--base <ref>` on the command
-2. `git config keel.base`
-3. the current branch's upstream
-4. `origin/HEAD`
-5. the HEAD of the only remote, if the remote is not called `origin`
-6. the only remote-tracking branch, if there is exactly one
+**Keel does not infer it**, and that is deliberate. Every available signal is
+wrong in an ordinary case — most sharply, a branch pushed with `git push -u`
+has *itself* as its upstream, so a merge-base against it is the branch tip and
+the entire change reads as empty. Silently. Guessing a repo's trunk is also not
+keel's business: some squash, some merge, some rebase, some never branch. Keel
+needs one fact — what to diff against — and asks for it rather than deriving a
+policy it has no standing to hold.
 
-**Fixing it.** A clone sets `origin/HEAD`, so most repos never see this. A repo
-where someone ran `git remote add` by hand has no `origin/HEAD` until:
-
-```
-git remote set-head origin -a       # ask the remote which branch is its default
-```
-
-For a repo with no remote, or a trunk the remote disagrees about, state it:
+**To fix it**, add the line to `surface.md` next to `**Class:**`:
 
 ```
-git config keel.base develop
+**Base:** trunk
 ```
 
-That lives in `.git/config`, so it is per-clone — a teammate sets it too. A
-`keel.base` naming a ref that does not exist is an error rather than a silent
+For a repo that does not branch, write `none`. Scoping then covers uncommitted
+work only, which is the right answer for that workflow.
+
+A `**Base:**` naming a ref that does not exist is an error rather than a
 fallback, because a silent fallback here means scoping quietly degrades.
 
 **If you only see this sometimes**, that is correct. Keel resolves a base only
-when something actually needs one: `check --changed` always does, and
-`participants` only when an entry at that point has `when.paths`. Keel's own
-participants are scoped by class, so a default install never needs a base at
-all.
+when something needs one: `check --changed` always does, and `participants`
+only when an entry at that point has `when.paths`. Keel's own participants are
+scoped by class, so a default install never needs a base at all.
 
 ### `keel: surface.md Class is '...', which is not a class`
 

@@ -34,6 +34,11 @@ scripts/keel workspace new <kebab-slug>
 Creates `docs/keel/features/YYYY-MM-DD-<slug>/`. Slug describes the change,
 not the ticket. If a workspace for this work already exists, use it.
 
+Note the branch you are on. That is the **base** — what this work will fork
+from, and what every later stage measures the change against. It is known for
+free right now and expensive to recover later, so it goes in `surface.md` in
+Step 5. The runner prints it for you here.
+
 For a spike you may skip the workspace — see classification below.
 
 ### Step 2: Read the law
@@ -81,7 +86,13 @@ Use the template in `references/surface-template.md`. Fill every section. A
 section with nothing in it says "none" — it never gets deleted, because an
 empty section is itself information.
 
-One field is mechanical and must be exact:
+Two fields are mechanical and must be exact:
+
+- **`**Base:**`** — the branch this work forks from, from Step 1. One ref, or
+  `none` if this repo does not branch. Keel never guesses it: a branch pushed
+  with `git push -u` is its own upstream, so guessing from git makes the whole
+  change read as empty, silently. Repos differ on branching and merging, and
+  none of that is keel's to decide — it only needs to know what to diff against.
 
 - **`## Watch`** — a fenced block listing every file this change will touch: the
   declarations you found in Step 3, the files that define the shapes and

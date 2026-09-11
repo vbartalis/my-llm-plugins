@@ -135,9 +135,11 @@ matters because a task's last step is a commit: scoping against the working tree
 alone would go empty the moment a task finished, and skip every path-scoped
 participant on exactly the work it was registered for.
 
-The base is `--base`, else `git config keel.base`, else the branch's upstream,
-else a remote's default branch — no branch name is hardwired. `keel base` says
-which applies, and how to set one when none does.
+The base is recorded, not inferred: `surface.md` names it as `**Base:**` when
+orienting runs, and `--base` overrides for one run. Keel does not derive it from
+git — a branch pushed with `git push -u` is its own upstream, and a merge-base
+against that is the branch tip, so the change reads as empty. `keel base` says
+what applies here.
 
 `build` scopes against neither. It resolves once per task, before that task has
 written anything, and the runner does not know which files the task names — so

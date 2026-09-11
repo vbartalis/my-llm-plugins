@@ -115,12 +115,15 @@ the harness as written, with a line on stderr, so a repo can name a model keel
 has not heard of. Advisors have none — they run in your context. Neither does
 the main conversation: it runs on the model you chose, and no entry changes that.
 
-**Base ref** — what a branch's change is measured against: `--base`, else
-`git config keel.base`, else the branch's upstream, else a remote's default
-branch. No branch name is hardwired. `keel base` says which applies here.
-It defines "the change" for `--changed` and for path-scoped participants, and
-it spans commits — a task ends by committing, so comparing against the working
-tree alone would stop matching exactly when review runs.
+**Base ref** — the branch a change forks from, recorded as `**Base:**` in
+`surface.md` when the work starts, because that is when it is known. Keel never
+infers it: a branch pushed with `git push -u` is its own upstream, so a guess
+makes the whole change read as empty. `--base` overrides for one run; `keel
+base` says which applies. It defines "the change" for `--changed` and for
+path-scoped participants, and it spans commits — a task ends by committing, so
+comparing against the working tree alone would stop matching exactly when
+review runs. A repo that does not branch records `none` and scopes against
+uncommitted work, which is correct for that workflow.
 
 ---
 

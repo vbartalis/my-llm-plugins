@@ -25,10 +25,11 @@
 #   keel base [--base <ref>]      what the change is measured against, and why
 #
 #   The change is the working tree plus every commit since the base ref, so
-#   scoping keeps working after a task commits. The base is --base, else
-#   `git config keel.base`, else the branch's upstream, else the remote's
-#   default branch. No branch name is hardwired. Only path-scoped checks and
-#   participants need one; when none is needed, none is resolved.
+#   scoping keeps working after a task commits. The base is the branch the work
+#   forked from: --base, else surface.md's `**Base:**`, recorded by orienting.
+#   Keel never guesses it. Only path-scoped checks and participants need one;
+#   when none is needed, none is resolved, and a repo that does not branch
+#   needs none at all.
 #
 # Exit: 0 all blocking checks passed, 1 a blocking check failed, 2 usage error.
 #END-HELP
@@ -52,77 +53,64 @@ warn() { printf 'keel: %s\n' "$*" >&2; }
 
 # What the change is measured against, and how it was decided.
 #
-# Prints "<ref>\t<how>" so callers can explain themselves. No branch name is
-# hardwired at any step — a repo's trunk is not keel's to assume. In order:
+# **Recorded, not discovered.** The branch a feature forks from is known at the
+# moment the work starts — you are standing on it. Orienting writes it into
+# surface.md as `**Base:**`, and this reads it back.
 #
-#   1. --base                     the caller said so
-#   2. git config keel.base       the repo said so, once, persistently
-#   3. the branch's upstream      git already knows what this branch tracks
-#   4. origin/HEAD                the remote's default branch
-#   5. any single remote's HEAD   same, for a repo whose remote is not "origin"
-#   6. the only remote branch     a repo with exactly one, so there is no guess
+# Working it out afterwards from git plumbing means guessing at a fact that was
+# in hand and thrown away, and the guesses are wrong in ordinary cases: a branch
+# pushed with `git push -u` has *itself* as its upstream, so a merge-base
+# against it is the branch tip and the entire change reads as empty. That is the
+# exact silent-skip this field exists to prevent, arriving through the fix for
+# it.
 #
-# Steps 4-6 are what a clone sets up for you. A repo where someone ran
-# `git remote add` by hand has none of them until `git remote set-head <r> -a`.
+#   1. --base                 the caller said so, for this run
+#   2. surface.md **Base:**   recorded when the work started
+#
+# There is no third step. Having none is a legitimate state rather than an
+# error — a repo that does not branch has nothing for this to mean, and scoping
+# falls back to the working tree.
 resolve_base() {
-  local explicit="${1:-}" ref n
-
+  local explicit="${1:-}" ws raw
   if [ -n "$explicit" ]; then printf '%s\t%s' "$explicit" "--base"; return 0; fi
-
-  ref="$(git config --get keel.base 2>/dev/null)"
-  if [ -n "$ref" ]; then
-    printf '%s\t%s' "$ref" "git config keel.base"; return 0
-  fi
-
-  ref="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)"
-  [ -z "$ref" ] || { printf '%s\t%s' "$ref" "this branch's upstream"; return 0; }
-
-  ref="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)"
-  [ -z "$ref" ] || { printf '%s\t%s' "$ref" "origin/HEAD"; return 0; }
-
-  # Exactly one remote with a HEAD — a repo whose remote is not called "origin".
-  # Resolve the symbolic ref rather than reporting the HEAD itself, so the
-  # answer names the branch a person would recognise.
-  n="$(git for-each-ref --format='%(refname)' 'refs/remotes/*/HEAD' 2>/dev/null)"
-  if [ "$(printf '%s\n' "$n" | grep -c .)" = "1" ] && [ -n "$n" ]; then
-    ref="$(git symbolic-ref --quiet --short "$n" 2>/dev/null)"
-    [ -z "$ref" ] || { printf '%s\t%s' "$ref" "${n#refs/remotes/}"; return 0; }
-  fi
-
-  # Exactly one remote-tracking branch in the whole repo — nothing to choose between.
-  n="$(git for-each-ref --format='%(refname:short)' refs/remotes 2>/dev/null | grep -v '/HEAD$')"
-  if [ "$(printf '%s\n' "$n" | grep -c .)" = "1" ] && [ -n "$n" ]; then
-    printf '%s\t%s' "$n" "the only remote-tracking branch"; return 0
-  fi
-
-  return 1
+  ws="$(ws_current 2>/dev/null)" || return 1
+  raw="$(md_value "${ws}/surface.md" Base)" || return 1
+  base_is_none "$raw" && return 1
+  printf '%s\t%s' "$raw" "surface.md"
 }
 
-# A configured base that names nothing is a repo defect, and the runner says so
-# rather than falling back — a silent fallback here means scoping quietly
-# degrades to the working tree, which is the failure this whole area is about.
+# "none" is an answer, not a missing one: a repo that does not branch has
+# nothing for this to mean, and every artifact section in keel says "none"
+# rather than going blank. An empty line means the same thing.
+base_is_none() {
+  case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
+    ""|none|n/a|-) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# A recorded base that names nothing is a defect in the artifact, and the runner
+# says so rather than falling back — a silent fallback here degrades scoping,
+# which is the failure this whole area is about.
 #
 # Checked at the top level on purpose. `resolve_base` runs inside command
 # substitution, where an `exit` would end only the subshell and the caller would
 # carry on with an empty base.
-check_base_config() {
-  local ref
-  ref="$(git config --get keel.base 2>/dev/null)" || return 0
-  [ -n "$ref" ] || return 0
-  git rev-parse --verify --quiet "$ref" >/dev/null 2>&1 && return 0
-  die "git config keel.base is '${ref}', which resolves to nothing in this repo
-point it at a ref that exists, or drop it: git config --unset keel.base"
+check_base_recorded() {
+  local ws raw
+  ws="$(ws_current 2>/dev/null)" || return 0
+  raw="$(md_value "${ws}/surface.md" Base 2>/dev/null)" || return 0
+  base_is_none "$raw" && return 0
+  git rev-parse --verify --quiet "$raw" >/dev/null 2>&1 && return 0
+  die "surface.md records **Base:** ${raw}, which resolves to nothing in this repo
+that line names the branch this work forked from — correct it, or drop it if
+this repo does not branch"
 }
 
-# The advice that actually fixes it, in the order most likely to apply.
 base_help() {
-  printf 'keel: to set one:\n'
-  if [ -n "$(git remote 2>/dev/null)" ]; then
-    printf 'keel:   git remote set-head %-14s  # ask the remote which branch is its default\n' \
-      "$(git remote 2>/dev/null | head -1) -a"
-  fi
-  printf 'keel:   git config keel.base <ref>     # state it for this repo, once and for all\n'
-  printf 'keel:   keel <cmd> --base <ref>        # just this run\n'
+  printf 'keel: the base is the branch this work forked from. Record it once:\n'
+  printf 'keel:   **Base:** <branch>            in surface.md, next to **Class:**\n'
+  printf 'keel:   keel <cmd> --base <ref>       to override for one run\n'
 }
 
 # Every path the change touches: the working tree, the index, untracked files,
@@ -165,6 +153,15 @@ ws_new() {
   local dir="${FEATURES_DIR}/$(date +%Y-%m-%d)-${slug}"
   [ -d "$dir" ] || mkdir -p "$dir"
   info "$dir"
+
+  # The branch you are standing on right now is what this work will fork from,
+  # and this is the only moment it is known for free. Said on stderr so stdout
+  # stays just the path.
+  local here
+  here="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+  if [ -n "$here" ] && [ "$here" != "HEAD" ]; then
+    warn "record \`**Base:** ${here}\` in surface.md — it is what scoping measures the change against"
+  fi
 }
 
 # Newest first. Ordered by modification time, not name: two workspaces created
@@ -395,18 +392,23 @@ run_checks() {
 
 CLASSES="spike local cross-app boundary"
 
-# The whole value of surface.md's Class line, not just its first word.
+# The whole value of a "**Field:** value" line, trimmed. Whole, not first-word:
+# reading only the first word is what let the unedited template line
+# "**Class:** spike | local | cross-app | boundary" resolve to `spike`.
+md_value() {
+  local file="$1" name="$2"
+  [ -f "$file" ] || return 1
+  sed -n "s/^\\*\\*${name}:\\*\\*[[:space:]]*//p" "$file" | head -1 \
+    | tr -d '`' | sed 's/[[:space:]]*$//'
+}
+
+# The surface class.
 #
 # Reading only the first word is what let the unedited template line
 # "**Class:** spike | local | cross-app | boundary" resolve to `spike` — which
 # silently skipped every class-scoped participant on the heaviest changes.
 # Taking the whole value means the placeholder fails validation instead.
-md_class() {
-  local file="$1"
-  [ -f "$file" ] || return 1
-  sed -n 's/^\*\*Class:\*\*[[:space:]]*//p' "$file" | head -1 \
-    | tr -d '`' | sed 's/[[:space:]]*$//'
-}
+md_class() { md_value "$1" Class; }
 
 valid_class() {
   case " $CLASSES " in *" $1 "*) return 0 ;; *) return 1 ;; esac
@@ -787,9 +789,9 @@ case "${1:-}" in
       *) die "usage: keel workspace {new <slug>|current|list}" ;;
     esac
     ;;
-  base)         shift; check_base_config; show_base "$@" ;;
-  check)        shift; check_base_config; run_checks "$@" ;;
-  participants) shift; check_base_config; run_participants "$@" ;;
+  base)         shift; check_base_recorded; show_base "$@" ;;
+  check)        shift; check_base_recorded; run_checks "$@" ;;
+  participants) shift; check_base_recorded; run_participants "$@" ;;
   ""|-h|--help|help)
     sed -n '2,/^#END-HELP/p' "$0" | grep -v '^#END-HELP' | sed 's/^# \{0,1\}//'
     ;;

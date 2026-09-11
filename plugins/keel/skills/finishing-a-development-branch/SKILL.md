@@ -30,8 +30,10 @@ was verified.
   code left from the build.
 - The keel artifacts are committed too. `surface.md`, `design.md`, `plan.md`,
   and `ledger.md` are part of the change, not scratch.
-- Branch is rebased or merged up to date with its base, and still passes.
-  A verification run against a stale base proves less than it looks like.
+- Branch is up to date with its base — the one `surface.md` recorded — and
+  still passes. A verification run against a stale base proves less than it
+  looks like. **How** you bring it up to date is the repo's business: rebase,
+  merge, whatever this repo does. Keel does not read on it.
 
 ### 2. Summarise the change
 
@@ -62,8 +64,11 @@ Say which you recommend and why. Then wait.
 ### 4. Execute the choice
 
 For a PR: title naming the apps affected, body from the summary, link to the
-feature workspace. For a merge: only after explicit agreement, and never onto
-a protected branch without it.
+feature workspace. For a merge: onto the base `surface.md` recorded, only after
+explicit agreement, and never onto a protected branch without it.
+
+Squash, merge commit, fast-forward, rebase-and-merge — the repo's convention,
+not keel's. Follow what this repo already does; ask if it is not obvious.
 
 ### 5. Close the workspace
 

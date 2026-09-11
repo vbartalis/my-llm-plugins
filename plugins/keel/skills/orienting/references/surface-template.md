@@ -8,10 +8,18 @@ scopes reviewers by it. A `Class` line the runner cannot read stops the stage
 with an error naming what it found, rather than resolving to something plausible
 and quietly skipping the reviewers a heavier change needs.
 
+**`Base` is the branch this work forks from** — the one you are standing on as
+you write this. It is what "the change" is measured against from here on: the
+working tree plus every commit since it. Keel never guesses it, because the
+guesses are wrong in ordinary cases and wrong quietly. Write "none" for a repo
+that does not branch; scoping then covers uncommitted work only, which is the
+right answer for that workflow.
+
 ```markdown
 # Surface: <change name>
 
 **Class:** <exactly one of: spike, local, cross-app, boundary>
+**Base:** <the branch this work forks from — the one you are on right now>
 **Date:** YYYY-MM-DD
 **One line:** <what changes, from the outside>
 
