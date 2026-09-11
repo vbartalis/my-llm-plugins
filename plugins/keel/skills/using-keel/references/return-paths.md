@@ -18,7 +18,7 @@ to the start.**
 | Verification: wrong behaviour | `brainstorming` | A design defect. The code does what the plan said; the plan said the wrong thing. |
 | Verification: missing work | `writing-plans` | A plan defect. The design covered it, no task implemented it. |
 | Verification: broken implementation | the build loop | A build defect. Handled by the fix loop, not by a stage return. |
-| A bug whose cause is unknown | find the cause first | A fix designed before the cause is known is a guess. Re-enter at `orienting` once you know. |
+| A bug whose cause is unknown | find the cause first | A fix designed before the cause is known is a guess. Reproduce, narrow, name the cause with its evidence, then re-enter at `orienting` and record that sentence in `surface.md`. |
 
 Stage 6 is the one place a return is not a loop. Not every branch lands, and
 discarding is a legitimate outcome.

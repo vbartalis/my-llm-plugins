@@ -64,6 +64,28 @@ assert_contains "and the unknown model still resolves" "$out" "claude-something-
 assert_contains "a valid entry defaults to sonnet"     "$out" "fine"$'\t'"reviewer"$'\t'"agent"$'\t'"x:y"$'\t'"advisory"$'\t'"artifacts"$'\t'"sonnet"
 rm -rf "$REPO"
 
+# --- `at` names a point that exists ------------------------------------------
+#
+# Only non-emptiness was checked before, so a typo left the entry inert forever
+# with nothing said — the same quiet no-op as a check that never runs. The point
+# list is one shell variable, shared by both parsers and the usage message.
+
+REPO="$(new_repo)"
+cat > "${REPO}/.keel/participants.json" <<'JSON'
+[ { "id": "typo",    "kind": "reviewer", "agent": "x:y", "at": "task-reveiw" },
+  { "id": "novel",   "kind": "reviewer", "agent": "x:y", "at": "debug" },
+  { "id": "correct", "kind": "reviewer", "agent": "x:y", "at": "task-review" } ]
+JSON
+out="$(keel participants --at task-review --all 2>&1)"
+assert_contains "a misspelled point is named"        "$out" "typo — at must be one of"
+assert_contains "and the valid points are listed"    "$out" "branch-review"
+assert_contains "a point that does not exist is too" "$out" "novel — at must be one of"
+assert_contains "and a correct entry still resolves" "$out" "correct"
+
+out="$(keel participants --at nope 2>&1)"
+assert_contains "the usage message lists the same points" "$out" "orient surface-gate design design-gate plan plan-gate build task-review branch-review verify"
+rm -rf "$REPO"
+
 # --- the class placeholder --------------------------------------------------
 #
 # The template ships all four options on one line. Reading only the first word

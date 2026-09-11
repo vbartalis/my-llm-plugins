@@ -72,10 +72,18 @@ Not everything is a feature. Route first:
 
 - **A question** ("how does X work", "where is Y") → answer it. No stage, no
   workspace. Reading is not a change.
-- **A bug with unknown cause** → find the root cause before designing anything.
-  A fix designed before the cause is known is a guess. Keel does not own
-  debugging technique; use whatever debugging skill this environment has. Once
-  the cause is known, re-enter at `orienting`.
+- **A bug with unknown cause** → find the cause before designing anything. A fix
+  designed before the cause is known is a guess. Prefer any debugging skill this
+  environment has; where there is none, this is the floor:
+  1. **Reproduce it.** A bug you cannot produce on demand is a bug you cannot
+     confirm you fixed.
+  2. **Narrow it.** Shrink the failing case until removing anything more makes
+     the failure go away. Bisect; do not reason from the first hypothesis.
+  3. **Name the cause in one sentence, with the evidence that proves it.** "The
+     webhook retries because the ack is written after the commit, see the log
+     at X" — not "something in the retry logic".
+  4. **Re-enter at `orienting`**, and put that sentence in `surface.md` under
+     `## Request`. It is known now and expensive to recover later.
 - **A spike** — a feasibility question whose output is an answer, not code you
   keep → `orienting` will classify it and route you out of the pipeline. Say
   so, timebox it, label anything built as throwaway.

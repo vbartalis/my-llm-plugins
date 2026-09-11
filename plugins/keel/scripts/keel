@@ -398,6 +398,11 @@ run_checks() {
 
 CLASSES="spike local cross-app boundary"
 
+# The attachment points, as one list. `point_paths_source` says where each one
+# scopes from; this says which exist. An `at` that is not here is a typo, and a
+# typo that is merely ignored leaves an entry inert forever with nothing said.
+POINTS="orient surface-gate design design-gate plan plan-gate build task-review branch-review verify"
+
 # The whole value of a "**Field:** value" line, trimmed. Whole, not first-word:
 # reading only the first word is what let the unedited template line
 # "**Class:** spike | local | cross-app | boundary" resolve to `spike`.
@@ -490,7 +495,7 @@ read_participants() {
 
   if command -v jq >/dev/null 2>&1; then
     local out
-    if out="$(jq -r --arg US "$US" '
+    if out="$(jq -r --arg US "$US" --arg POINTS "$POINTS" '
       if type != "array"
       then ("!BAD" + $US + "participants.json" + $US + "must be a JSON array")
       else .[] |
@@ -498,8 +503,11 @@ read_participants() {
         | (.agent // .skill // .prompt // "") as $t
         | (.kind // "reviewer") as $k
         | (.model // "") as $m
-        | if (.id // "") == "" or (.at // "") == "" or $tt == "none"
+        | (.at // "") as $at
+        | if (.id // "") == "" or $at == "" or $tt == "none"
           then "!BAD" + $US + (.id // "?") + $US + "needs id, at, and one of agent/skill/prompt"
+          elif ($POINTS | split(" ") | index($at)) == null
+          then "!BAD" + $US + .id + $US + "at must be one of: " + $POINTS
           elif (["advisor","reviewer","implementer"] | index($k)) == null
           then "!BAD" + $US + .id + $US + "kind must be advisor, reviewer, or implementer"
           elif $k == "advisor" and $m != ""
@@ -520,11 +528,12 @@ read_participants() {
       printf '!BAD\x1f%s\x1f%s\n' "$PARTICIPANTS_FILE" "$(printf '%s' "$out" | head -1)"
     fi
   elif command -v python3 >/dev/null 2>&1; then
-    python3 - "$PARTICIPANTS_FILE" <<'PY'
+    python3 - "$PARTICIPANTS_FILE" "$POINTS" <<'PY'
 import json, sys
-US    = "\x1f"
-KINDS = ("advisor", "reviewer", "implementer")
+US     = "\x1f"
+KINDS  = ("advisor", "reviewer", "implementer")
 MODELS = ("opus", "sonnet", "haiku", "fable", "inherit")
+POINTS = sys.argv[2].split()
 
 def bad(who, why):
     print(US.join(["!BAD", who, why]))
@@ -545,6 +554,8 @@ for p in doc:
     m  = p.get("model", "") or ""
     if not p.get("id") or not p.get("at") or tt == "none":
         bad(p.get("id", "?"), "needs id, at, and one of agent/skill/prompt"); continue
+    if p["at"] not in POINTS:
+        bad(p["id"], "at must be one of: " + " ".join(POINTS)); continue
     if k not in KINDS:
         bad(p["id"], "kind must be advisor, reviewer, or implementer"); continue
     if k == "advisor" and m:
@@ -625,7 +636,7 @@ run_participants() {
   done
   [ -n "$point" ] || die "usage: keel participants --at <point> [--class <class>] [--base <ref>] [--all]"
   point_paths_source "$point" >/dev/null || die "unknown attachment point: $point
-points: orient surface-gate design design-gate plan plan-gate build task-review branch-review verify"
+points: $POINTS"
   [ -z "$class" ] || valid_class "$class" || die "unknown class: $class
 classes: $CLASSES"
 

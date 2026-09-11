@@ -104,6 +104,29 @@ resident="$(grep -c 'skills/using-keel/SKILL.md' "$P/hooks/session-start")"
 others="$(grep -oE 'skills/[a-z-]+/SKILL\.md' "$P/hooks/session-start" | sort -u | grep -cv using-keel)"
 assert_rc "the hook injects nothing else" 0 "$others"
 
+# --- the resident skill carries its own minimum ------------------------------
+#
+# Every other instruction in keel resolves to a file, a command, or a shipped
+# default. The bug-routing bullet once delegated its entire payload to "whatever
+# debugging skill this environment has", which in a repo with none resolved to
+# nothing — the only no-op instruction in the plugin.
+
+router="$P/skills/using-keel/SKILL.md"
+while IFS= read -r beat; do
+  [ -n "$beat" ] || continue
+  grep -qF "$beat" "$router" \
+    && _pass "bug routing carries: ${beat}" \
+    || _fail "bug routing carries: ${beat}" "the resident skill does not say it"
+done <<'BEATS'
+Reproduce it.
+Narrow it.
+Name the cause in one sentence
+Re-enter at `orienting`
+BEATS
+grep -qF "Prefer any debugging skill this" "$router" \
+  && _pass "and still prefers an installed debugging skill" \
+  || _fail "and still prefers an installed debugging skill" "keel would be claiming the tactic outright"
+
 # --- the hook ---------------------------------------------------------------
 
 # A bare directory, not new_repo — new_repo creates .keel/, which is precisely

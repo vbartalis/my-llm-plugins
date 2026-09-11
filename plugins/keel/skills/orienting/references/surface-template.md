@@ -26,7 +26,12 @@ right answer for that workflow.
 ## Request
 
 <What was asked for, in your partner's terms. Two or three sentences. This is
-the thing the design will be judged against.>
+the thing the design will be judged against.
+
+For a bug, this is the **cause you established**, with the evidence that proves
+it — not the symptom that was reported. The cause is known the moment debugging
+ends and is expensive to recover afterwards; a design argued against a symptom
+is a design argued against a guess.>
 
 ## Apps Touched
 

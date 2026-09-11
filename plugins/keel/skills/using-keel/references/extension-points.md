@@ -63,6 +63,46 @@ checks plus an advisor at `design` and a reviewer at `branch-review`. Being an
 advisor is the important half: a design system that only reviews catches drift
 after it exists.
 
+## Considered and not built
+
+Keel's own brainstorming skill says the most valuable line in a design is often
+"we considered X and did not do it because Y". These are keel's.
+
+**A `debug` attachment point.** Proposed so a polyglot repo could register a
+debugging skill per app. It cannot be scoped: an unknown-cause bug arrives
+*before* orienting, so there is no workspace, no surface class, and — the tree
+being clean and the fault being in committed code — no diff either. Every
+path-scoped entry would therefore fail to match, which means `when.paths` on a
+debug entry is a field that can never be true. It would also be the eleventh
+point, against the contract two files above.
+
+**`fallback: true` on a participant** — an entry resolving only when no other
+entry matched. Wanted for the same case: keel's own debugging skill for the apps
+a repo has not covered. Two reasons it is wrong. It *infers* "nobody covered
+this" from a scoping result, and per the point above that result under-matches,
+so the fallback would over-fire and displace the repo's real skill in exactly
+the apps that had one — silently. And the registry is a single file the repo
+owns outright, so precedence between entries in it is already expressible by
+editing it; a fallback field only pays off where entries arrive from two sources
+that cannot see each other, which is a composition model keel does not have.
+
+Both remain purely additive. Neither needs anything reserved for it now, and the
+honest trigger for reconsidering either is a real caller that is not prose.
+
+**A debugging skill of keel's own.** Held, not refused. The bug-routing bullet in
+`using-keel` now carries the minimum itself, which is strictly more reliable: a
+separate skill must be *invoked*, and the thing that would invoke it is the same
+prose that was failing. Promote it to a skill if the resident lines prove too
+thin — that is extraction, not rework.
+
+**A TDD skill.** Not needed, and the reason generalises: **keel ships a tactic
+only where no artifact records the decision and no participant or check can
+catch its absence.** TDD has both — the plan template's task steps are the
+red-green cycle, and the task-reviewer treats a missing verification step as
+blocking. Debugging had neither, which is why its minimum is written down. Test
+*design* stays out: it is language-specific, and the reviewer already asks
+whether a test would fail if the implementation were wrong.
+
 ## Rules for adding a layer
 
 A layer may add: checks, participants, reserved artifact sections, and reference
