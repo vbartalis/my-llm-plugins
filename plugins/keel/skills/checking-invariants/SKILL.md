@@ -57,9 +57,10 @@ moment the checks are supposed to run. The base is `--base`, else the `**Base:**
 line `surface.md` recorded when the work started. Keel does not guess it.
 
 <EXTREMELY-IMPORTANT>
-A check's `command` is shell, and `scripts/keel check` runs it. Read the
-manifests in `.keel/checks/` before running the set on a branch you did not
-write — running keel's checks on someone else's branch executes their code.
+A check's `command` is shell, and `scripts/keel check` runs it. Run
+`scripts/keel check --list` before running the set on a branch you did not
+write: it names every command without executing one. Running keel's checks on
+someone else's branch executes their code.
 On your own branches this is the whole point: a check is a command, which is
 what makes it enforceable where a document is not.
 </EXTREMELY-IMPORTANT>
@@ -83,6 +84,12 @@ other. Three outcomes and only three:
 There is no fourth outcome. "Skip it for now" is how the previous rebuilds
 happened. If you genuinely cannot resolve it inside the task, ledger it as a
 parked finding with the reason, and it becomes visible at verification.
+
+**`TIMEOUT` is not one of the three.** It means keel got no verdict — the check
+exceeded its budget and was stopped. The invariant is neither true nor false,
+and treating it as a failure of the code sends you to fix the wrong thing.
+Either make the check faster (it runs after every task; that is the rule), or
+raise the budget with `--timeout` because this one genuinely needs it.
 
 ## Adding a Check
 

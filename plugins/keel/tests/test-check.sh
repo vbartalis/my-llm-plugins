@@ -104,4 +104,88 @@ assert_contains "a missing task number is an error" "$out" 'no "### Task 9:" hea
 assert_rc "and exits 2" 2 "$rc"
 rm -rf "$REPO"
 
+# --- the envelope keel owes anything it runs --------------------------------
+#
+# Keel executes repo-supplied shell. That makes it an execution host, and a host
+# owes its guests a stated contract. Every assertion below was a measured
+# failure before it was a test.
+
+REPO="$(new_repo)"
+
+# stdin is closed. The manifest loop reads from a herestring, so a check that
+# reads stdin used to eat the remaining checks: three registered, one ran,
+# "0 failed", exit 0. A silently shrunk check set reporting green is the worst
+# failure this runner can have.
+write_file .keel/checks/a.json '{"id":"a-eats-stdin","description":"d","why":"w","command":"cat >/dev/null; true","scope":["**/*"],"severity":"blocking","layer":"repo"}'
+write_file .keel/checks/b.json '{"id":"b-second","description":"d","why":"w","command":"true","scope":["**/*"],"severity":"blocking","layer":"repo"}'
+write_file .keel/checks/c.json '{"id":"c-third","description":"d","why":"w","command":"true","scope":["**/*"],"severity":"blocking","layer":"repo"}'
+out="$(keel check 2>&1)"
+assert_contains "a check reading stdin does not eat the set" "$out" "3 ran"
+assert_contains "the check after it still runs"              "$out" "b-second"
+assert_contains "and the one after that"                     "$out" "c-third"
+rm -rf "$REPO"
+
+# The runner's own shell options do not reach the check. `set -u` used to leak
+# through eval, so a check that passes when a human runs it FAILed under keel —
+# with a diagnostic naming keel's own file, which sends the agent to fix the
+# wrong thing.
+REPO="$(new_repo)"
+write_file .keel/checks/u.json '{"id":"unset-var","description":"d","why":"w","command":"echo $NOT_SET_ANYWHERE; true","scope":["**/*"],"severity":"blocking","layer":"repo"}'
+out="$(keel check 2>&1)"; rc=$?
+assert_contains "an unset variable is the check's business, not keel's" "$out" "PASS"
+assert_not_contains "and keel does not blame the repo for its own shell"  "$out" "unbound variable"
+assert_rc "so the run passes" 0 "$rc"
+rm -rf "$REPO"
+
+# Output is captured off any inherited descriptor. A check that backgrounds a
+# child which inherits stdout used to block the runner for the child's whole
+# lifetime — 25 seconds of dead air, and past the Bash tool's timeout an
+# unrecognisable tool failure.
+REPO="$(new_repo)"
+write_file scripts/checks/bg.sh '#!/usr/bin/env bash
+sleep 12 &
+echo done
+exit 0'
+( cd "$REPO" && chmod +x scripts/checks/bg.sh )
+write_file .keel/checks/bg.json '{"id":"backgrounds","description":"d","why":"w","command":"scripts/checks/bg.sh","scope":["**/*"],"severity":"blocking","layer":"repo"}'
+start=$(date +%s); out="$(keel check 2>&1)"; elapsed=$(( $(date +%s) - start ))
+assert_contains "a check with a backgrounded child still passes" "$out" "PASS"
+[ "$elapsed" -lt 6 ] \
+  && _pass "and does not block on it (${elapsed}s)" \
+  || _fail "and does not block on it" "took ${elapsed}s — the runner is waiting on an inherited descriptor"
+rm -rf "$REPO"
+
+# Time is bounded, and exceeding the budget is its own outcome. "Seconds, not
+# minutes" is a rule in checking-invariants with nothing enforcing it.
+REPO="$(new_repo)"
+write_file .keel/checks/slow.json '{"id":"slow","description":"d","why":"w","command":"sleep 30","scope":["**/*"],"severity":"blocking","layer":"repo"}'
+start=$(date +%s); out="$(keel check --timeout 2 2>&1)"; rc=$?; elapsed=$(( $(date +%s) - start ))
+assert_contains "an over-budget check times out"        "$out" "TIMEOUT"
+assert_contains "and says what the budget was"          "$out" "2s"
+assert_not_contains "and is not reported as a failed invariant" "$out" "FAIL "
+assert_rc "the run still fails" 1 "$rc"
+[ "$elapsed" -lt 8 ] \
+  && _pass "and the runner returns promptly (${elapsed}s)" \
+  || _fail "and the runner returns promptly" "took ${elapsed}s"
+rm -rf "$REPO"
+
+# --- the transcript records what ran ----------------------------------------
+#
+# `PASS [repo] keel-tests` hid `bash plugins/keel/tests/run-tests.sh`. One Bash
+# call fans out to N commands, and the conversation recorded none of them.
+
+REPO="$(new_repo)"
+write_file scripts/checks/real.sh '#!/usr/bin/env bash
+exit 0'
+( cd "$REPO" && chmod +x scripts/checks/real.sh )
+write_file .keel/checks/r.json '{"id":"named","description":"must hold","why":"w","command":"scripts/checks/real.sh --strict","scope":["**/*"],"severity":"blocking","layer":"repo"}'
+out="$(keel check 2>&1)"
+assert_contains "the result line names the command that ran" "$out" "scripts/checks/real.sh --strict"
+
+out="$(keel check --list 2>&1)"
+assert_contains "--list names the command"      "$out" "scripts/checks/real.sh --strict"
+assert_contains "--list names the severity"     "$out" "blocking"
+assert_not_contains "and runs nothing"          "$out" "PASS"
+rm -rf "$REPO"
+
 report

@@ -11,6 +11,11 @@
 #     --changed                   run only checks whose scope matches the change
 #     --base <ref>                what the change is measured against
 #     --layer <layer>             only checks carrying this layer
+#     --timeout <seconds>         per-check budget (default 120); over it is TIMEOUT
+#     --list                      name every command without running one
+#
+#     Each check runs with cwd at the repo root, stdin closed, output captured,
+#     a fresh shell and a wall clock bound. The exit status is the only signal.
 #
 #   keel participants --at <point>  who takes part at this point
 #     --class <class>             override the surface class
@@ -240,6 +245,41 @@ PY
   fi
 }
 
+# Run one check, and give it the envelope keel owes anything it starts.
+#
+# Keel executes shell the repo supplied. That makes it an execution host, and a
+# host owes its guests a contract. Every clause below was a measured failure:
+#
+#   stdin from /dev/null   The manifest loop reads from a herestring. A check
+#                          that read stdin ate the remaining checks — three
+#                          registered, one ran, "0 failed", exit 0. A silently
+#                          shrunk check set reporting green is the worst thing
+#                          this runner can do.
+#   output to a file       `out="$(...)"` waits for stdout to *close*, not for
+#                          the process to exit, so a backgrounded grandchild
+#                          holding the pipe blocked the runner for its whole
+#                          lifetime.
+#   a fresh `bash -c`      The runner's `set -uo pipefail` leaked through eval,
+#                          so a check that passed for a human FAILed here, with
+#                          a diagnostic naming keel's own line number. The agent
+#                          then fixes the wrong thing.
+#   a wall clock bound     "Seconds, not minutes" is a rule in
+#                          checking-invariants with nothing behind it.
+#
+# Sets CHECK_OUT. Returns the check's exit status, or 124/137 on timeout.
+CHECK_OUT=""
+run_one_check() {
+  local cmd="$1" budget="$2" out_file rc
+  out_file="$(mktemp)"
+  timeout -k 5 "$budget" \
+    bash -c 'cd "$1" && eval "$2"' _ "$REPO_ROOT" "$cmd" \
+    >"$out_file" 2>&1 </dev/null
+  rc=$?
+  CHECK_OUT="$(cat "$out_file")"
+  rm -f "$out_file"
+  return "$rc"
+}
+
 # Does any path in the working diff match any of this check's globs?
 # Globbing is disabled while splitting: a scope like "apps/**" must stay a
 # pattern rather than expanding against the filesystem.
@@ -298,17 +338,21 @@ task_check_ids() {
 }
 
 run_checks() {
-  local only_id="" only_layer="" task_n="" changed_only=0 base=""
+  local only_id="" only_layer="" task_n="" changed_only=0 base="" list_only=0
+  local budget="$CHECK_BUDGET"
   while [ $# -gt 0 ]; do
     case "$1" in
       --id)      only_id="${2:-}";    [ -n "$only_id" ]    || die "--id needs a value";    shift 2 ;;
       --layer)   only_layer="${2:-}"; [ -n "$only_layer" ] || die "--layer needs a value"; shift 2 ;;
       --task)    task_n="${2:-}";     [ -n "$task_n" ]     || die "--task needs a value";  shift 2 ;;
       --base)    base="${2:-}";       [ -n "$base" ]       || die "--base needs a value";  shift 2 ;;
+      --timeout) budget="${2:-}";     [ -n "$budget" ]     || die "--timeout needs a value"; shift 2 ;;
       --changed) changed_only=1; shift ;;
+      --list)    list_only=1; shift ;;
       *) die "unknown option: $1" ;;
     esac
   done
+  case "$budget" in *[!0-9]*|"") die "--timeout takes whole seconds" ;; esac
 
   local manifests
   manifests="$(read_manifests)" || return 2
@@ -357,7 +401,7 @@ run_checks() {
   local changed=""
   [ "$changed_only" -eq 0 ] || changed="$(changed_paths "$base")"
 
-  local failed=0 ran=0 skipped=0 advisories=0
+  local failed=0 ran=0 skipped=0 advisories=0 timeouts=0
   local id sev layer cmd desc scope out rc
   while IFS=$'\x1f' read -r id sev layer cmd desc scope; do
     [ -n "$id" ] || continue
@@ -370,31 +414,60 @@ run_checks() {
       skipped=$((skipped + 1)); continue
     fi
 
+    # Listing is resolution without execution, so it answers "what would run
+    # here" without running anything — which is what makes the instruction to
+    # read the manifests on a branch you did not write into a command.
+    if [ "$list_only" -eq 1 ]; then
+      ran=$((ran + 1))
+      printf '%-9s [%s] %-24s %s\n' "$sev" "$layer" "$id" "$cmd"
+      continue
+    fi
+
     ran=$((ran + 1))
-    out="$( cd "$REPO_ROOT" && eval "$cmd" 2>&1 )"; rc=$?
+    run_one_check "$cmd" "$budget"; rc=$?
+    out="$CHECK_OUT"
+
     if [ "$rc" -eq 0 ]; then
-      printf 'PASS      [%s] %s\n' "$layer" "$id"
+      printf 'PASS      [%s] %-24s %s\n' "$layer" "$id" "$cmd"
+    elif [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+      # Keel could not get an answer. That is not the same fact as "the
+      # invariant is false", and reporting it as FAIL sends the agent to fix
+      # the repo for keel's own budget.
+      timeouts=$((timeouts + 1))
+      printf 'TIMEOUT   [%s] %-24s %s\n' "$layer" "$id" "$cmd"
+      printf '          exceeded %ss — no verdict. Make it faster, or raise --timeout.\n' "$budget"
+      [ -z "$out" ] || printf '%s\n' "$out" | sed 's/^/          /'
     elif [ "$sev" = "advisory" ]; then
       advisories=$((advisories + 1))
-      printf 'ADVISORY  [%s] %s — %s\n' "$layer" "$id" "$desc"
+      printf 'ADVISORY  [%s] %-24s %s\n' "$layer" "$id" "$cmd"
+      printf '          %s\n' "$desc"
       [ -z "$out" ] || printf '%s\n' "$out" | sed 's/^/          /'
     else
       failed=$((failed + 1))
-      printf 'FAIL      [%s] %s — %s\n' "$layer" "$id" "$desc"
+      printf 'FAIL      [%s] %-24s %s\n' "$layer" "$id" "$cmd"
+      printf '          %s\n' "$desc"
       [ -z "$out" ] || printf '%s\n' "$out" | sed 's/^/          /'
     fi
   done <<< "$manifests"
 
+  [ "$list_only" -eq 0 ] || { printf -- '---\n%d registered, none run\n' "$ran"; return 0; }
+
   printf -- '---\n%d ran, %d failed' "$ran" "$failed"
+  [ "$timeouts"   -eq 0 ] || printf ', %d timed out' "$timeouts"
   [ "$advisories" -eq 0 ] || printf ', %d advisory' "$advisories"
   [ "$skipped"    -eq 0 ] || printf ', %d out of scope' "$skipped"
   printf '\n'
 
-  [ "$failed" -eq 0 ] || return 1
+  [ "$failed" -eq 0 ] && [ "$timeouts" -eq 0 ] || return 1
   return 0
 }
 
 # --------------------------------------------------------------- artifacts --
+
+# What a single check gets before keel stops waiting. Matches the Bash tool's
+# own default, so a check that would outlive the tool call fails as a keel
+# TIMEOUT — with a verdict — rather than as an unrecognisable tool error.
+CHECK_BUDGET=120
 
 CLASSES="spike local cross-app boundary"
 

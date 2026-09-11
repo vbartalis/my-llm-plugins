@@ -13,6 +13,43 @@ There are only two, and both are repo-level JSON:
 
 Everything else is reserved *content* inside artifacts, not a new mechanism.
 
+## Where repo content gets executed or relayed
+
+Two mechanisms, but **three** places where what the repo supplied starts doing
+something. Each carries the trust of the repo, not of keel, and the difference
+between them is how much containment keel gets for free:
+
+| Place | What runs | Contained by |
+|---|---|---|
+| A check's `command` | shell, in the runner | **keel** — see the executor contract below |
+| A prompt participant's file | its text becomes a subagent's instructions | the harness — no conversation context, gates forced advisory |
+| `` !` ` `` in a command file | shell, at expansion time | **nothing** — no tool call, no permission, no transcript |
+
+The third is why `/keel:status` no longer injects `keel check`. Command
+injection runs before anyone sees it, so keel does not put repo-supplied content
+through it. Resolution — reading keel's own files — is fine there; execution is
+not.
+
+### What keel owes a check it runs
+
+Because keel executes these itself rather than handing them to the harness, it
+owes them an envelope, and a check author can rely on it:
+
+- **cwd is the repo root.**
+- **stdin is `/dev/null`.** A check that reads stdin used to consume keel's own
+  manifest list and silently shrink the check set.
+- **output is captured off any inherited descriptor**, so a backgrounded child
+  cannot hold the runner open.
+- **a fresh shell**, so the runner's `set -uo pipefail` cannot fail a check that
+  passes when a human runs it.
+- **time is bounded**, and exceeding the budget is `TIMEOUT` — a distinct
+  outcome meaning *keel got no verdict*, never `FAIL`, which would blame the
+  repo for keel's budget.
+- **the exit status is the only signal.** Nothing else is interpreted.
+
+A check still owns its own children: keel bounds the command it starts, not
+everything that command spawns. Do not background work from a check.
+
 Keel keeps no version and no record of what changed between its releases, so
 there is no migration mechanism either — and a layer must not add one. When the
 plugin moves on, `keel doctor` reports what is broken today and where a repo

@@ -11,7 +11,7 @@
       "name": "keel",
       "source": "./plugins/keel",
       "description": "Process spine for polyglot monorepos: orient, design, plan, build, verify, ship — with enforceable invariants.",
-      "version": "0.9.1",
+      "version": "0.10.0",
       "author": {
         "name": "Vilmos Bartalis"
       },

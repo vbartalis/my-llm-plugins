@@ -50,3 +50,21 @@ layers that do exist rather than running nothing and calling it a pass.
 
 **`fixHint`** — surfaced to implementers when the check fails, so a fix round
 starts from the right place. Optional, cheap, worth writing.
+
+## What the runner guarantees your command
+
+Keel runs a check's `command` itself rather than handing it to the harness, so
+it owes you a stated envelope. You can rely on all of this:
+
+| | |
+|---|---|
+| cwd | the repo root |
+| stdin | `/dev/null` — never keel's own data |
+| stdout + stderr | captured, not streamed; surfaced on failure |
+| shell | a fresh one; keel's `set -uo pipefail` does not reach you |
+| time | bounded (`--timeout`, default 120s); over it is `TIMEOUT`, not `FAIL` |
+| result | your exit status, and nothing else |
+
+The one thing keel cannot bound is what your command *spawns*. A backgrounded
+child outlives the check and nothing in the conversation knows it exists, so a
+check owns its children: do not background work from one.

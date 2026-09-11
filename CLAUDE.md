@@ -72,9 +72,24 @@ add compatibility shims, manifests, or prose for other harnesses.
   the one or two guards specific to being invoked directly. Never put substance
   in a command; it duplicates and then drifts.
 - **`scripts/keel`** — the only executable. Bash, `jq` or `python3` for JSON,
-  no other dependency. It **resolves**; it never dispatches. `keel participants`
-  says who should take part; the stage skill does the dispatching. That split is
-  why adding a participant never means touching the runner.
+  no other dependency. It has **two roles**, and conflating them hid four bugs:
+
+  **Resolver**, for anything the harness must start. `keel participants` says
+  who should take part; the stage skill dispatches. Not a preference — bash
+  cannot dispatch a subagent — but it means participants inherit the harness's
+  guarantees free: per-call permission, a transcript entry, a timeout, process
+  isolation.
+
+  **Bounded executor**, for repo-supplied shell. `keel check` runs a check's
+  `command` itself, because the verdict has to be an exit status the runner
+  aggregates rather than an opinion an agent forms. Nothing else can price a
+  check at milliseconds or work in CI with no agent present.
+
+  The second role is the one that needs writing down, because keel took it on
+  without stating what it owes. See `run_one_check`: stdin closed, output off
+  any inherited descriptor, a fresh shell, a wall-clock bound. Every clause is a
+  measured failure, and "it resolves; it never dispatches" is what kept them
+  invisible — the doctrine said no execution site existed.
 - **`templates/`** — what `/keel:init` copies into a repo. `participants.json`
   here is also the registry a repo falls back to before init has run, so it is
   live code, not a sample.

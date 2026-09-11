@@ -81,6 +81,20 @@ for f in "$P"/commands/*.md; do
   fi
 done
 
+# Command injection runs before anyone sees it — no tool call, no permission
+# decision, no transcript entry. Resolution (reading keel's own files) is fine
+# there. Execution of repo-supplied content is not: `keel check` runs a command
+# this repo wrote, and /keel:status once fanned out to the whole set under
+# frontmatter declaring Read and Glob.
+for f in "$P"/commands/*.md; do
+  c="$(basename "$f" .md)"
+  if grep -E '^!`' "$f" | grep -q 'keel check'; then
+    _fail "/keel:${c} does not inject repo-supplied execution" "an injected line runs 'keel check'"
+  else
+    _pass "/keel:${c} does not inject repo-supplied execution"
+  fi
+done
+
 # --- skills -----------------------------------------------------------------
 
 for d in "$P"/skills/*/; do
