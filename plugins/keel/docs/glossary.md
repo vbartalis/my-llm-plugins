@@ -68,6 +68,12 @@ postconditions at task granularity.
 
 ## Enforcement
 
+**Doctor** — `keel doctor`. Whether this repo's keel setup holds right now:
+does each piece still work, and where does it differ from what keel currently
+ships. Present tense only — keel records no version and no history, so "are you
+behind" is a question it cannot answer and does not ask. `BROKEN` is a defect;
+`differs` is a disagreement only a human can settle.
+
 **Invariant** — a rule that must hold. Enforced either as a check or a rubric.
 
 **Check** — an invariant a command can decide. `.keel/checks/<id>.json`, whose

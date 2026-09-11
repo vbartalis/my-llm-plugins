@@ -64,6 +64,17 @@ itself in every project on the machine.
 /keel:init
 ```
 
+Run it again whenever you like. There is no separate upgrade: on a fresh repo it
+sets keel up, on one that has had keel for a year it reconciles what drifted.
+`scripts/keel doctor` reports the state first, and `/keel:init` walks the
+differences with you.
+
+Keel records no version and keeps no history of its own changes. It cannot tell
+your deliberate edit from its own drift, so it never guesses — it reports what
+is broken today, reports where you differ from what it currently ships, and
+leaves the judgment to you. Feature workspaces it will not touch at all: those
+artifacts passed a gate.
+
 That installs `scripts/keel` (a wrapper that finds the plugin at runtime),
 creates `docs/keel/` and `.keel/checks/`, and walks you through a constitution.
 

@@ -24,6 +24,12 @@
 #
 #   keel base [--base <ref>]      what the change is measured against, and why
 #
+#   keel doctor                   does this repo's keel setup hold, right now?
+#     Reports; changes nothing. Present tense only — keel records no version
+#     and no history, so it asks whether each piece works today and where this
+#     repo differs from what keel currently ships, never "are you behind".
+#     Exit 1 if something is broken. A difference is not a defect.
+#
 #   The change is the working tree plus every commit since the base ref, so
 #   scoping keeps working after a task commits. The base is the branch the work
 #   forked from: --base, else surface.md's `**Base:**`, recorded by orienting.
@@ -586,8 +592,14 @@ paths_for_point() {
 resolve_prompt_target() {
   local target="$1" plug rel base hit
   case "$target" in
-    /*)     printf '%s' "$target"; return 0 ;;
-    keel:*) printf '%s/%s' "$PLUGIN_ROOT" "${target#keel:}"; return 0 ;;
+    /*)     printf '%s' "$target"; [ -f "$target" ] || return 1; return 0 ;;
+    keel:*)
+      # Resolving the path is not the same as the file being there. A keel:
+      # prompt that names a file this version does not ship is a dangling
+      # reference, and saying so beats handing back a path that opens nothing.
+      printf '%s/%s' "$PLUGIN_ROOT" "${target#keel:}"
+      [ -f "${PLUGIN_ROOT}/${target#keel:}" ] || return 1
+      return 0 ;;
     *:*)
       plug="${target%%:*}"; rel="${target#*:}"
       base="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins"
@@ -778,6 +790,243 @@ show_base() {
   return 0
 }
 
+# ----------------------------------------------------------------- doctor --
+
+# Does this repo's keel setup hold, right now?
+#
+# Present tense on purpose. Keel records no version and keeps no history of what
+# it changed between releases, so "is this repo behind" is a question it cannot
+# answer and does not ask. It asks the answerable one instead: does each piece
+# still do its job today, and where does what is here differ from what keel
+# currently ships. Everything below is decided by a command; judgment is left to
+# whoever reads the output.
+#
+# It reports. It changes nothing — `/keel:init` does that, with a human at each
+# divergence.
+
+DOC_BROKEN=0
+DOC_DIFFERS=0
+
+d_ok()      { printf 'ok       %s\n' "$*"; }
+d_differs() { printf 'differs  %s\n' "$*"; DOC_DIFFERS=$((DOC_DIFFERS + 1)); }
+d_broken()  { printf 'BROKEN   %s\n' "$*"; DOC_BROKEN=$((DOC_BROKEN + 1)); }
+d_note()    { printf '         %s\n' "$*"; }
+d_head()    { printf '\n%s\n' "$*"; }
+
+# 0 runnable, 1 missing, 2 present but not executable.
+command_runnable() {
+  local head="${1%% *}"
+  case "$head" in
+    */*) [ -e "${REPO_ROOT}/${head}" ] || return 1
+         [ -x "${REPO_ROOT}/${head}" ] || return 2 ;;
+    *)   command -v "$head" >/dev/null 2>&1 || return 1 ;;
+  esac
+  return 0
+}
+
+# Is the plugin that provides a `plugin:thing` target installed on this machine?
+plugin_present() {
+  local plug="$1" base
+  [ "$plug" = "keel" ] && return 0
+  base="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins"
+  find "$base" -maxdepth 5 -type d -name "$plug" 2>/dev/null | grep -q .
+}
+
+# Installed copy versus what keel ships today. Which one is right is not keel's
+# call — a difference is as likely to be the repo's deliberate change as ours.
+compare_to_template() {
+  local installed="$1" template="$2"
+  [ -f "${PLUGIN_ROOT}/${template}" ] || return 0
+  [ -e "${REPO_ROOT}/${installed}" ] || return 0
+  if diff -q "${PLUGIN_ROOT}/${template}" "${REPO_ROOT}/${installed}" >/dev/null 2>&1; then
+    d_ok "${installed} matches what keel ships"
+  else
+    d_differs "${installed} differs from what keel ships — yours or ours, you decide"
+  fi
+}
+
+doctor_wrapper() {
+  d_head "wrapper"
+  if [ ! -e "${REPO_ROOT}/scripts/keel" ]; then
+    d_broken "scripts/keel is missing — plan steps, CI and humans all call it; /keel:init installs it"
+    return
+  fi
+  [ -x "${REPO_ROOT}/scripts/keel" ] || { d_broken "scripts/keel is not executable — chmod +x scripts/keel"; return; }
+  if ( cd "$REPO_ROOT" && ./scripts/keel help ) >/dev/null 2>&1; then
+    d_ok "scripts/keel runs and finds a runner"
+  else
+    d_broken "scripts/keel cannot find a runner — is the plugin installed? see KEEL_HOME in docs/troubleshooting.md"
+  fi
+  compare_to_template "scripts/keel" "templates/keel-wrapper.sh"
+}
+
+doctor_participants() {
+  d_head "participants"
+  local src rows bad id kind tt target at
+  src="$(participants_file)" || { d_broken "no participant registry, and none shipped with the plugin"; return; }
+  [ "$src" = "$REPO_PARTICIPANTS" ] \
+    && d_ok ".keel/participants.json is this repo's" \
+    || d_note "no .keel/participants.json — keel's shipped defaults are in use; /keel:init writes a copy"
+
+  rows="$(read_participants)"
+  bad="$(printf '%s\n' "$rows" | grep '^!BAD' || true)"
+  if [ -n "$bad" ]; then
+    printf '%s\n' "$bad" | while IFS=$'\x1f' read -r _ who reason; do
+      printf 'BROKEN   participant %s — %s\n' "$who" "$reason"
+    done
+    DOC_BROKEN=$((DOC_BROKEN + $(printf '%s\n' "$bad" | grep -c .)))
+  fi
+  rows="$(printf '%s\n' "$rows" | grep -v '^!BAD' | grep -v '^!WARN' || true)"
+
+  # The points where having nobody means a stage silently does nothing.
+  local point n
+  for point in build task-review branch-review; do
+    n="$(printf '%s\n' "$rows" | awk -F'\x1f' -v p="$point" '$5 == p' | grep -c . || true)"
+    if [ "$n" -eq 0 ]; then
+      case "$point" in
+        build)         d_broken "nothing at 'build' — no implementer, so the build loop has nobody to dispatch" ;;
+        task-review)   d_broken "nothing at 'task-review' — tasks would be built and never reviewed" ;;
+        branch-review) d_broken "nothing at 'branch-review' — the branch would land unreviewed" ;;
+      esac
+    else
+      d_ok "${n} at ${point}"
+    fi
+  done
+
+  # Every target has to be something this machine can actually reach.
+  while IFS=$'\x1f' read -r id kind tt target at _; do
+    [ -n "$id" ] || continue
+    case "$tt" in
+      prompt)
+        resolve_prompt_target "$target" >/dev/null \
+          || d_broken "participant ${id}: prompt '${target}' does not resolve to a file" ;;
+      agent)
+        case "$target" in
+          keel:*) [ -f "${PLUGIN_ROOT}/agents/${target#keel:}.md" ] \
+                    || d_broken "participant ${id}: keel has no agent '${target#keel:}'" ;;
+          *:*)    plugin_present "${target%%:*}" \
+                    || d_differs "participant ${id}: plugin '${target%%:*}' is not installed here — the entry stays, the dispatch will not happen" ;;
+        esac ;;
+      skill)
+        case "$target" in
+          keel:*) [ -d "${PLUGIN_ROOT}/skills/${target#keel:}" ] \
+                    || d_broken "participant ${id}: keel has no skill '${target#keel:}'" ;;
+          *:*)    plugin_present "${target%%:*}" \
+                    || d_differs "participant ${id}: plugin '${target%%:*}' is not installed here" ;;
+        esac ;;
+    esac
+  done <<< "$rows"
+
+  # What keel ships today that this repo's registry does not carry. Present
+  # tense: no claim about when it appeared, only that it is not here.
+  if [ "$src" = "$REPO_PARTICIPANTS" ] && [ -f "$DEFAULT_PARTICIPANTS" ] && command -v jq >/dev/null 2>&1; then
+    local missing
+    missing="$(jq -r --slurpfile mine "$REPO_PARTICIPANTS" \
+      '[.[].id] - [$mine[0][].id] | .[]' "$DEFAULT_PARTICIPANTS" 2>/dev/null || true)"
+    if [ -n "${missing//[[:space:]]/}" ]; then
+      while IFS= read -r m; do
+        [ -n "$m" ] || continue
+        d_differs "keel ships a participant '${m}' your registry does not have — add it, or decide you do not want it"
+      done <<< "$missing"
+    fi
+  fi
+}
+
+doctor_checks() {
+  d_head "checks"
+  local manifests bad id sev layer cmd rc
+  manifests="$(read_manifests)"
+  bad="$(printf '%s\n' "$manifests" | grep '^!BAD' || true)"
+  if [ -n "$bad" ]; then
+    printf '%s\n' "$bad" | while IFS=$'\x1f' read -r _ path reason; do
+      printf 'BROKEN   %s — %s\n' "$path" "$reason"
+    done
+    DOC_BROKEN=$((DOC_BROKEN + $(printf '%s\n' "$bad" | grep -c .)))
+  fi
+  manifests="$(printf '%s\n' "$manifests" | grep -v '^!BAD' || true)"
+
+  if [ -z "${manifests//[[:space:]]/}" ]; then
+    d_differs "no checks registered — keel's position is that a rule worth having is worth a command"
+  fi
+
+  while IFS=$'\x1f' read -r id sev layer cmd _; do
+    [ -n "$id" ] || continue
+    command_runnable "$cmd"; rc=$?
+    case "$rc" in
+      0) d_ok "${id} can run" ;;
+      1) d_broken "${id}: '${cmd%% *}' does not exist — the check would fail for the wrong reason" ;;
+      2) d_broken "${id}: '${cmd%% *}' is not executable — chmod +x it" ;;
+    esac
+  done <<< "$manifests"
+
+  compare_to_template ".keel/checks/link-integrity.json" "templates/checks/link-integrity.json"
+  compare_to_template "scripts/checks/link-integrity.sh" "templates/checks/link-integrity.sh"
+}
+
+doctor_declaration() {
+  d_head "declaration"
+  local f="${REPO_ROOT}/CLAUDE.md"
+  if [ ! -f "$f" ]; then
+    d_differs "no CLAUDE.md — the repo does not state its own process, so it stops being keel-shaped for anyone who has not installed the plugin"
+  elif grep -qi 'keel' "$f"; then
+    d_ok "CLAUDE.md declares keel"
+  else
+    d_differs "CLAUDE.md does not mention keel — /keel:init merges a section in"
+  fi
+  [ -d "${REPO_ROOT}/docs/keel" ] || d_differs "no docs/keel/ — constitution and feature workspaces live there"
+  [ -f "${REPO_ROOT}/docs/keel/constitution.md" ] \
+    && d_ok "docs/keel/constitution.md exists (yours; keel never edits it)" \
+    || d_differs "no constitution — every stage reads it as repo law"
+}
+
+# Workspaces are reported, never corrected. Each one passed a gate; an artifact
+# a human approved is not keel's to rewrite because the plugin moved on.
+doctor_workspaces() {
+  d_head "workspaces"
+  local ws n=0 cls base
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    n=$((n + 1))
+    [ -f "${ws}/surface.md" ] || { d_note "$(basename "$ws"): no surface.md yet"; continue; }
+    cls="$(md_class "${ws}/surface.md" || true)"
+    if [ -z "$cls" ]; then
+      d_differs "$(basename "$ws"): no Class — participants scoped by class cannot be resolved here"
+    elif ! valid_class "$cls"; then
+      d_broken "$(basename "$ws"): Class is '${cls}', which is not a class — stages reading it will stop"
+    else
+      d_ok "$(basename "$ws"): class ${cls}"
+    fi
+    base="$(md_value "${ws}/surface.md" Base 2>/dev/null || true)"
+    if base_is_none "$base"; then
+      d_note "  no Base recorded — the change is measured against uncommitted work only"
+    fi
+  done <<< "$(ws_list)"
+  [ "$n" -gt 0 ] || d_note "none yet"
+}
+
+run_doctor() {
+  [ $# -eq 0 ] || die "usage: keel doctor"
+  DOC_BROKEN=0; DOC_DIFFERS=0
+  doctor_wrapper
+  doctor_participants
+  doctor_checks
+  doctor_declaration
+  doctor_workspaces
+
+  printf -- '\n---\n'
+  if [ "$DOC_BROKEN" -eq 0 ] && [ "$DOC_DIFFERS" -eq 0 ]; then
+    info "keel holds here."
+    return 0
+  fi
+  printf '%d broken' "$DOC_BROKEN"
+  [ "$DOC_DIFFERS" -eq 0 ] || printf ', %d differing' "$DOC_DIFFERS"
+  printf '\n'
+  [ "$DOC_DIFFERS" -eq 0 ] || info "A difference is not a defect. Keel keeps no history, so it cannot tell
+your deliberate change from its own — run /keel:init to walk them with a human."
+  [ "$DOC_BROKEN" -eq 0 ] || return 1
+  return 0
+}
+
 # --------------------------------------------------------------------- main --
 
 case "${1:-}" in
@@ -790,6 +1039,7 @@ case "${1:-}" in
     esac
     ;;
   base)         shift; check_base_recorded; show_base "$@" ;;
+  doctor)       shift; run_doctor "$@" ;;
   check)        shift; check_base_recorded; run_checks "$@" ;;
   participants) shift; check_base_recorded; run_participants "$@" ;;
   ""|-h|--help|help)

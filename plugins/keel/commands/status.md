@@ -15,6 +15,10 @@ allowed-tools: Read, Glob
 
 !`scripts/keel check --changed 2>&1 || true`
 
+## Setup
+
+!`scripts/keel doctor 2>&1 | tail -6 || true`
+
 ---
 
 Report the state of keel work in this repo from the above. Do not change
@@ -30,6 +34,8 @@ Otherwise report:
   whether verification has run
 - the stage this puts the work in, and the command for the next stage
 - check results by layer, pass and fail counts
+- whether the setup holds; if anything is broken or differs, say so in one line
+  and point at `/keel:init`, which reconciles it
 
 Read `ledger.md` for the middle bullet; the rest is above. Keep it to a short
 report. No narration.

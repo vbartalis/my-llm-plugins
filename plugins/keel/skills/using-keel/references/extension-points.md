@@ -13,6 +13,12 @@ There are only two, and both are repo-level JSON:
 
 Everything else is reserved *content* inside artifacts, not a new mechanism.
 
+Keel keeps no version and no record of what changed between its releases, so
+there is no migration mechanism either — and a layer must not add one. When the
+plugin moves on, `keel doctor` reports what is broken today and where a repo
+differs from what keel currently ships, and a human decides. See
+`../../../docs/troubleshooting.md`.
+
 ## Checks
 
 A rule with a command behind it, exiting non-zero when it does not hold. This

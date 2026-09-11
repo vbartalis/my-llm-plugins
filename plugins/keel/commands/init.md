@@ -1,10 +1,66 @@
 ---
-description: Set up keel in this repository — wrapper, directories, constitution
+description: Set up keel in this repository, or reconcile a setup that has drifted
+argument-hint: "[nothing — it works out which it is]"
 disable-model-invocation: true
 ---
 
-Set up keel in this repository. Report what you created and what already
-existed; do not overwrite anything that is already there.
+Bring this repository's keel setup to a working state.
+
+**Run it as often as you like.** There is no separate upgrade: on a repo with
+no keel this creates one, and on a repo that has had keel for a year it
+reconciles what is there. Same command, because it does the same thing — look
+at what exists now and fix what does not hold.
+
+## First: what is actually here
+
+```
+scripts/keel doctor
+```
+
+If `scripts/keel` does not exist yet, this is a fresh setup — skip to step 1 and
+work through in order.
+
+Otherwise `doctor` has just told you the state of every piece, and **its output
+is your worklist.** Work only the lines it printed. Do not re-do the steps it
+reported `ok`; re-copying a file someone has deliberately edited is how a repo
+loses its own decisions.
+
+<EXTREMELY-IMPORTANT>
+Keel records no version and keeps no history of what it changed between
+releases. It cannot tell a difference it introduced from one the repo made on
+purpose, and it must not guess.
+
+So a `differs` line is **not** a defect and **not** a thing to fix. It is a
+question for your human partner: keel currently ships X, this repo has Y, which
+do you want? Ask, one at a time, with both versions visible.
+
+`BROKEN` lines are different — those are things that do not work today, and
+they get fixed.
+</EXTREMELY-IMPORTANT>
+
+## Reconciling, by who owns what
+
+**Keel's plumbing — replace it.** `scripts/keel` is the wrapper that locates
+the runner. It is lookup code with nothing in it worth customising, and it has
+to track the plugin. If `doctor` says it differs or is broken, copy the current
+template over it and say that you did.
+
+**Shared files — propose, never overwrite.** `.keel/participants.json`, the
+shipped checks, the `CLAUDE.md` section. The repo has been editing these on
+purpose. For each difference, show what keel ships and what is here, and let
+your partner choose. A participant keel ships that this repo lacks is an
+offer, not an omission.
+
+**The repo's own — report only.** `docs/keel/constitution.md`, checks this repo
+wrote, its own participants. Keel never edits these. Mention anything that looks
+stale and move on.
+
+**Feature workspaces — never touch.** Every artifact in
+`docs/keel/features/*/` passed a gate. If one lacks something the current keel
+reads — a `**Base:**` line, a valid `**Class:**` — say what it costs, in
+present tense: *"scoping here falls back to uncommitted work."* Then leave it
+alone unless your partner asks. Retro-fitting an approved artifact is the
+silent-edit this whole process exists to prevent.
 
 ## 1. The wrapper
 
@@ -113,5 +169,9 @@ not use keel.
 
 ## 8. Report
 
-Say what was created, what already existed, which checks and participants are
-registered, and that the next step is `/keel:orient`.
+Say what you created, what you replaced, what you left alone, and what is still
+an open question for your partner. End with `scripts/keel doctor` again, so the
+report is the tool's output rather than your account of it.
+
+On a fresh setup, the next step is `/keel:orient`. On a reconcile, there may be
+no next step at all — that is a fine outcome and worth saying.

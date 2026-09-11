@@ -153,6 +153,54 @@ would stall the pipeline with no clean recovery.
 If you want something to actually block, attach it at `task-review`,
 `branch-review` or `verify` — or make it a check.
 
+### The plugin moved on and this repo did not
+
+```
+scripts/keel doctor
+```
+
+Then `/keel:init`. There is no separate upgrade command, and no version to
+compare against.
+
+**Why there is no version.** Keel records nothing about which release set a repo
+up, and keeps no history of what changed between releases. That is deliberate.
+Tracking versions and per-version changes is a database migration, and the
+problem here is not shaped like one: the repo has been editing these files on
+purpose, and no ledger of keel's changes can tell a deliberate divergence from a
+stale one. Only the person who made it knows.
+
+**What keel can answer** is present tense: does each piece still work today, and
+where does this repo differ from what keel currently ships. `doctor` reports
+both, and the distinction is the whole point:
+
+- **`BROKEN`** — something does not work now. A check whose script is gone, a
+  registry with nobody at `task-review`, a participant naming an agent keel does
+  not have. These get fixed.
+- **`differs`** — this repo and this keel disagree. A retuned check, a
+  participant keel ships that you do not carry. **Not a defect.** Keel has no
+  way to know whether that is your decision or its own drift, so it says what it
+  sees and stops. You decide, one at a time.
+
+**What `/keel:init` will and will not do**, by who owns the file:
+
+| | |
+|---|---|
+| `scripts/keel` | replaced — lookup plumbing, nothing in it worth keeping |
+| `.keel/participants.json`, shipped checks, the `CLAUDE.md` section | proposed, one difference at a time |
+| your constitution, your checks, your participants | reported, never edited |
+| anything under `docs/keel/features/` | never touched at all |
+
+That last row matters most. Those artifacts passed a gate. A `surface.md`
+written before `**Base:**` existed keeps working — scoping there falls back to
+uncommitted work, `doctor` says so, and nothing rewrites it. Retro-fitting an
+approved artifact because the plugin moved on is exactly the silent edit keel
+exists to prevent.
+
+**What this costs.** Keel can never tell you "release X changed Y, go do Z". If
+a difference does not show up today as something not working or not matching
+what keel currently ships, keel has nothing to say about it. Release notes are
+for humans to read; the tooling stays present tense.
+
 ### Keel does not seem to be active in this repo
 
 The `SessionStart` hook injects the stage map only where keel is set up — it

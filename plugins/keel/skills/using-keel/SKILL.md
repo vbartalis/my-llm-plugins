@@ -48,7 +48,7 @@ Available at any point, not part of the line:
 
 | Command | Skill | Use for |
 |---------|-------|---------|
-| `/keel:init` | — | Set up keel in a repo. Run once, before anything else. |
+| `/keel:init` | — | Set up keel in a repo, or reconcile a setup that has drifted. Re-runnable; there is no separate upgrade. |
 | `/keel:status` | — | Where am I? Reads the feature workspace and reports. |
 | `/keel:check` | `keel:checking-invariants` | Run the repo's registered invariant checks. |
 | `/keel:review` | `keel:requesting-code-review` | Dispatch a reviewer at any point. |
